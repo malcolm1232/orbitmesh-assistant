@@ -62,7 +62,7 @@ Described only: a `staging` Cloud Run service receiving every `main` build with 
 
 - `terraform apply` in `infra/terraform/` against a real project created the Artifact Registry repo, the secret, the runtime service account and its IAM binding, the Cloud Run service, the uptime check, four alert policies, four log-based metrics and the dashboard.
 - The image was built and pushed with Cloud Build (`gcloud builds submit --tag …`).
-- The live URL is printed by `terraform output service_url`; `/`, `/health`, `/chat` and `/metrics` were verified in a browser and with `curl` (see the README for the exact commands).
+- The live URL is printed by `terraform output service_url`; the web UI (Ask, Connectors with an upload connector created and a revised document indexed, Dashboard), `/health`, `/chat`, `/api/*` and `/metrics` were verified in a browser and with `curl` (see the README for the exact commands).
 
 ## Cost
 
