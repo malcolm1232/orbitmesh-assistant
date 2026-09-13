@@ -51,16 +51,36 @@
       </div>
     </section>
 
-    <!-- CONNECTORS -->
+    <!-- CONNECTORS: a DBSearch-style node canvas. Every node feeds the one shared knowledge base. -->
     <section id="view-connectors" class="view">
-      <header class="view-head">
-        <div><h1>Connectors</h1><p class="muted">Every connector feeds one shared knowledge base. Disable one and its chunks leave the index on the next sync; re-upload a revised file and its chunks are replaced, never duplicated.</p></div>
+      <header class="cv-head">
+        <div class="cv-title"><h1>Connectors</h1><p class="muted small">Every node feeds one shared knowledge base. Turn a node off and its chunks leave the index; re-upload a file and its chunks are replaced, never duplicated.</p></div>
         <div class="head-actions">
           <button id="sync-all" class="btn ghost">Sync all</button>
-          <button id="add-connector" class="btn primary">Add connector</button>
         </div>
       </header>
-      <div id="connector-list" class="connector-list"></div>
+      <div class="cv-main">
+        <aside class="cv-rail" id="cv-rail" aria-label="Add a node">
+          <div class="eyebrow">Add a node</div>
+          <div id="cv-kinds" class="cv-kinds"></div>
+          <p class="rail-note">Each node is a source of <code>.md</code> documents. Click a tile to drop a node on the canvas, then configure it in the panel on the right.</p>
+        </aside>
+        <div class="cv-canvas" id="cv-canvas">
+          <div class="cv-world" id="cv-world">
+            <svg class="cv-edges" id="cv-edges" width="2000" height="1300"></svg>
+            <div class="hub" id="cv-hub"><div class="core"><div class="ring" aria-hidden="true"></div><b>Knowledge base</b><span id="hub-sub">one shared index</span></div></div>
+          </div>
+          <div class="zoomctl">
+            <button id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+            <button class="zpct" id="zoom-pct" title="Reset to 100%">100%</button>
+            <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <span class="zsep"></span>
+            <button class="zfit" id="zoom-fit" title="Fit every node in view">Fit</button>
+          </div>
+        </div>
+        <aside class="cv-panel" id="cv-panel" aria-live="polite"></aside>
+      </div>
+      <footer class="cv-status" id="cv-status"></footer>
     </section>
 
     <!-- DASHBOARD -->
@@ -80,28 +100,6 @@
       <div class="table-wrap"><table id="sessions-table"><thead><tr><th>session</th><th>turns</th><th>last action</th><th>outcome</th><th>facts</th><th>updated</th></tr></thead><tbody></tbody></table></div>
     </section>
   </main>
-</div>
-
-<!-- add connector modal -->
-<div id="modal" class="modal" hidden>
-  <div class="modal-card">
-    <h2>Add connector</h2>
-    <label>Name <input id="c-name" placeholder="e.g. Pro Series updates"></label>
-    <label>Kind
-      <select id="c-kind">
-        <option value="upload">Upload .md files</option>
-        <option value="gdrive">Google Drive public link</option>
-        <option value="sharepoint">SharePoint / OneDrive public link</option>
-      </select>
-    </label>
-    <label id="c-source-row" hidden>Link <input id="c-source" placeholder="https://…"></label>
-    <p class="muted small" id="c-hint"></p>
-    <div class="modal-actions">
-      <button class="btn ghost" id="c-cancel">Cancel</button>
-      <button class="btn primary" id="c-create">Create</button>
-    </div>
-    <p id="c-error" class="error" hidden></p>
-  </div>
 </div>
 
 <div id="toast" class="toast" hidden></div>

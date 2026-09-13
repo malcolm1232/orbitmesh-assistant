@@ -41,3 +41,16 @@ CI stays credential-free. Full eval must remain 37/37 after the change.
 2. Thread `connector_id` through `corpus.py`/`vectorstore.py`/`retrieval.py`; CLI ingest -> sync_all.
 3. `server.py` API + static UI (`static/app.html|js|css`), `/api/stats` from the Prometheus registry.
 4. Tests, eval re-run, Docker (`/data/connectors` volume), redeploy, Chrome verification, docs.
+
+## Revision: Connectors as a node canvas (2026-09-14)
+The Connectors view is a DBSearch.AI-style canvas instead of a card list, front end only (same API).
+- Rail "Add a node": Upload files, Google Drive, SharePoint. A click drops a DRAFT node (client only).
+- Inspector: a draft takes a name plus a link (or dropped `.md` files) and becomes a real connector
+  in place; a real node shows enable switch, counts, source, last error, re-fetch, two-step delete,
+  document list with remove, and a dropzone for upload nodes.
+- Canvas: one knowledge-base hub, an edge per node (animated when the node has indexed chunks,
+  dashed grey when off, empty or failing), drag to move nodes, drag the background to pan,
+  ctrl/cmd + wheel or the zoom control to zoom, Fit. Positions are per-browser (localStorage),
+  saved only when a node is created or dragged.
+- Status bar: index current / needs sync, nodes, enabled, documents, chunks, drafts.
+- Guard: a server test asserts every `$("#id")` app.js looks up exists in app.html.

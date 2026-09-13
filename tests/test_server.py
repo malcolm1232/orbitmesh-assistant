@@ -28,6 +28,22 @@ def test_pages_and_ops(client):
     assert "orbitmesh_turns_total" in client.get("/metrics").text
 
 
+def test_every_element_the_ui_script_looks_up_exists_in_the_page(client):
+    """app.js grabs its mount points with $("#id") at start-up; a renamed or removed element in
+    app.html throws there and blanks every view. Ids the script creates itself (the inspector's
+    p-* fields) are rendered on demand and are excluded."""
+    import re
+
+    html = client.get("/").text
+    js = client.get("/static/app.js").text
+    looked_up = set(re.findall(r'\$\("#([A-Za-z][\w-]*)"\)', js))
+    rendered_by_js = set(re.findall(r'id="([A-Za-z][\w-]*)"', js))
+    missing = sorted(i for i in looked_up - rendered_by_js if f'id="{i}"' not in html)
+    assert looked_up and not missing, missing
+    for mount in ("cv-canvas", "cv-world", "cv-edges", "cv-hub", "cv-kinds", "cv-panel", "cv-status"):
+        assert f'id="{mount}"' in html
+
+
 def test_chat_returns_contract_plus_evidence(client):
     j = client.post("/chat", json={"session_id": "web-1", "message": "N1 flashing amber on wireless"}).json()
     assert j["action"] in {"ask", "instruct", "resolved", "escalate"} and isinstance(j["citations"], list)
