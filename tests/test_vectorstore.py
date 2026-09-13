@@ -1,0 +1,72 @@
+"""Re-ingestion must never accumulate duplicates and must drop stale chunks."""
+import json
+import shutil
+from pathlib import Path
+
+from orbitmesh.corpus import load_corpus
+from orbitmesh.embeddings import HashingEmbedder
+from orbitmesh.vectorstore import VectorStore, point_id
+
+from .conftest import CORPUS
+
+
+def _copy_corpus(tmp_path: Path) -> Path:
+    dst = tmp_path / "corpus"
+    shutil.copytree(CORPUS, dst)
+    return dst
+
+
+def test_sync_is_idempotent(tmp_path):
+    vs = VectorStore(path=tmp_path / "q", embedder=HashingEmbedder())
+    chunks = load_corpus(CORPUS)
+    first = vs.sync(chunks)
+    second = vs.sync(chunks)
+    assert first.recreated and not second.recreated
+    assert vs.count() == len(chunks) == first.total == second.total
+    assert second.deleted == 0
+
+
+def test_edited_document_replaces_its_chunks_without_duplicates(tmp_path):
+    corpus = _copy_corpus(tmp_path)
+    vs = VectorStore(path=tmp_path / "q", embedder=HashingEmbedder())
+    before = load_corpus(corpus)
+    vs.sync(before)
+    n = vs.count()
+
+    guide = corpus / "troubleshooting-guide.md"
+    guide.write_text(guide.read_text().replace("Wait two minutes.", "Wait five minutes."))
+    after = load_corpus(corpus)
+    report = vs.sync(after)
+
+    assert vs.count() == n, "an edit must not grow the index"
+    old_ids = {c.chunk_id for c in before} - {c.chunk_id for c in after}
+    new_ids = {c.chunk_id for c in after} - {c.chunk_id for c in before}
+    assert len(old_ids) == 1 and len(new_ids) == 1 and report.deleted == 1
+    live = {c.chunk_id for c in vs.all_chunks()}
+    assert new_ids <= live and not (old_ids & live)
+    assert any("Wait five minutes" in c.text for c in vs.all_chunks())
+    assert not any("Wait two minutes" in c.text for c in vs.all_chunks())
+
+
+def test_document_removed_from_manifest_is_deleted(tmp_path):
+    corpus = _copy_corpus(tmp_path)
+    vs = VectorStore(path=tmp_path / "q", embedder=HashingEmbedder())
+    vs.sync(load_corpus(corpus))
+    manifest = json.loads((corpus / "manifest.json").read_text())
+    manifest["documents"] = [d for d in manifest["documents"] if d["id"] != "firmware-archive"]
+    (corpus / "manifest.json").write_text(json.dumps(manifest))
+    report = vs.sync(load_corpus(corpus))
+    assert report.deleted > 0
+    assert not any(c.source_id == "firmware-archive" for c in vs.all_chunks())
+
+
+def test_changing_the_embedder_recreates_the_collection(tmp_path):
+    chunks = load_corpus(CORPUS)
+    VectorStore(path=tmp_path / "q", embedder=HashingEmbedder(dim=128)).sync(chunks)
+    vs = VectorStore(path=tmp_path / "q", embedder=HashingEmbedder(dim=256))
+    report = vs.sync(chunks)
+    assert report.recreated and vs.count() == len(chunks)
+
+
+def test_point_ids_are_stable():
+    assert point_id("abc") == point_id("abc") != point_id("abd")

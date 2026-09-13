@@ -1,0 +1,93 @@
+{
+  "corpus": "OrbitMesh customer support",
+  "documents": [
+    {
+      "id": "quick-start-guide",
+      "title": "OrbitMesh Quick Start and Installation",
+      "path": "quick-start-guide.md",
+      "format": "markdown",
+      "version": "2.1",
+      "effective_date": "2026-04-10"
+    },
+    {
+      "id": "troubleshooting-guide",
+      "title": "OrbitMesh Troubleshooting Guide",
+      "path": "troubleshooting-guide.md",
+      "format": "markdown",
+      "version": "3.0",
+      "effective_date": "2026-05-02"
+    },
+    {
+      "id": "led-reference",
+      "title": "OrbitMesh LED and Error-Code Reference",
+      "path": "led-reference.md",
+      "format": "markdown",
+      "version": "2.4",
+      "effective_date": "2026-05-02"
+    },
+    {
+      "id": "network-compatibility",
+      "title": "OrbitMesh Network Compatibility Guide",
+      "path": "network-compatibility.md",
+      "format": "markdown",
+      "version": "1.8",
+      "effective_date": "2026-03-18"
+    },
+    {
+      "id": "firmware-release-notes",
+      "title": "OrbitMesh Firmware Release Notes",
+      "path": "firmware-release-notes.md",
+      "format": "markdown",
+      "version": "3.4.2",
+      "effective_date": "2026-06-12"
+    },
+    {
+      "id": "reset-recovery-guide",
+      "title": "OrbitMesh Reset, Recovery, and Data-Loss Guide",
+      "path": "reset-recovery-guide.md",
+      "format": "markdown",
+      "version": "2.2",
+      "effective_date": "2026-05-14"
+    },
+    {
+      "id": "warranty-safety-policy",
+      "title": "OrbitMesh Warranty, Safety, and Escalation Policy",
+      "path": "warranty-safety-policy.md",
+      "format": "markdown",
+      "version": "1.5",
+      "effective_date": "2026-01-01"
+    },
+    {
+      "id": "pro-quick-start-guide",
+      "title": "OrbitMesh Pro Series Quick Start (R5 Pro and N5 Pro)",
+      "path": "pro-quick-start-guide.md",
+      "format": "markdown",
+      "version": "1.3",
+      "effective_date": "2026-02-20"
+    },
+    {
+      "id": "pro-led-reference",
+      "title": "OrbitMesh Pro Series LED Reference",
+      "path": "pro-led-reference.md",
+      "format": "markdown",
+      "version": "1.1",
+      "effective_date": "2026-02-20"
+    },
+    {
+      "id": "firmware-archive",
+      "title": "OrbitMesh Firmware Release Archive (3.2.x–3.3.x)",
+      "path": "firmware-archive.md",
+      "format": "markdown",
+      "version": "3.3.9",
+      "effective_date": "2025-11-06"
+    },
+    {
+      "id": "customer-faq",
+      "title": "OrbitMesh Home FAQ",
+      "path": "customer-faq.md",
+      "format": "markdown",
+      "version": "1.0",
+      "effective_date": "2026-06-01"
+    }
+  ]
+}

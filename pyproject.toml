@@ -1,0 +1,33 @@
+[project]
+name = "orbitmesh-assistant"
+version = "0.1.0"
+description = "OrbitMesh Support Assistant - a grounded, guard-railed CLI troubleshooting chatbot over the OrbitMesh product corpus."
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "qdrant-client>=1.12",
+    "fastembed>=0.5",
+    "openai>=1.40",
+    "python-dotenv>=1.0",
+    "rank-bm25>=0.2.2",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "prometheus-client>=0.20",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+orbitmesh = "orbitmesh.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

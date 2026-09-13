@@ -1,0 +1,20 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+# Local vector database state, model cache, sessions, LLM cache and generated output
+data/
+qdrant_storage/
+eval_results/
+*.log
+.idea/
+.vscode/
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars

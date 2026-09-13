@@ -1,0 +1,51 @@
+# Deploy to Cloud Run on a push to main (after ci.yml's checks). Authenticates with GitHub
+# OIDC -> Workload Identity Federation, so there is no long-lived GCP key in GitHub.
+# Required repository variables: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_DEPLOY_SA; region below.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGION: asia-southeast1
+  SERVICE: orbitmesh-assistant
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    if: vars.GCP_PROJECT_ID != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - name: Test (offline mode)
+        run: |
+          python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+          make test
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build + push image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/orbitmesh/assistant:${GITHUB_SHA::7}"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - name: Deploy (Terraform owns the service; this rolls the image)
+        run: gcloud run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --project "${{ vars.GCP_PROJECT_ID }}" --quiet
+      - name: Smoke test the live service
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --project "${{ vars.GCP_PROJECT_ID }}" --format='value(status.url)')
+          curl -fsS "$URL/health"
+          curl -fsS -X POST "$URL/chat" -H 'content-type: application/json' \
+            -d '{"session_id":"deploy-smoke","message":"My N1 is flashing amber"}' | grep -q '"action"'
