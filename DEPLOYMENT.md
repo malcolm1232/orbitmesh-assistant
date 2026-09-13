@@ -8,7 +8,7 @@ Everything under **Implemented** exists in `infra/terraform/`, `cloudbuild.yaml`
 The assistant is a stateless request/response service with bursty, low average traffic and a cold-start budget of a few seconds (the ONNX embedding model and the corpus index load in ~2 s from the image).
 That profile is exactly what Cloud Run is for:
 
-- **Scale to zero.** A support bot for one product line idles most of the day. `min_instance_count = 0` means the demo costs nothing while nobody is talking to it; `max_instance_count = 3` caps the blast radius of a traffic spike or a bug loop against the OpenRouter budget.
+- **Scale to zero.** A support bot for one product line idles most of the day. `min_instance_count = 0` means the demo costs nothing while nobody is talking to it; `max_instance_count = 1` keeps the demo's UI-added connectors and sessions on one instance disk (production would move that state out and raise the cap - see State below).
 - **One image, one artefact.** The same `Dockerfile` that `docker compose` uses locally is what Cloud Run runs. The embedding model and the ingested index are baked at build time, so a container is fully functional with no network calls except to OpenRouter.
 - **Concurrency without threads to manage.** Each turn is dominated by one LLM round-trip (1-5 s). Cloud Run's request concurrency (default 80) lets one small instance hold many idle-waiting conversations.
 - **Managed TLS, IAM, probes, revisions and rollback** come for free, and the request/instance/latency metrics feed the dashboard without an agent.
