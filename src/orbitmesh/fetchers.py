@@ -3,8 +3,10 @@
 Google Drive
     * file links  (`/file/d/<id>`, `open?id=<id>`)      -> `uc?export=download&id=<id>`
     * Google Docs (`/document/d/<id>`)                   -> `export?format=md` (falls back to txt)
-    * folder links (`/drive/folders/<id>`)               -> Drive API v3 `files.list` - needs a free
-      API key (`GOOGLE_API_KEY`); listing a public folder anonymously is not possible.
+    * folder links (`/drive/folders/<id>`)               -> `embeddedfolderview?id=<id>`, the page Drive
+      serves for embedding a PUBLIC folder: no key, no sign-in. It answers 401 for a folder that is not
+      shared as "Anyone with the link", which is reported as exactly that. Subfolders are followed
+      (depth and file count capped). With `GOOGLE_API_KEY` set, Drive API v3 `files.list` is used instead.
 SharePoint / OneDrive
     * "Anyone with the link" FILE links                  -> the same URL with `download=1`
     * "Anyone with the link" FOLDER links (`/:f:/`)      -> the mechanism DBSearch.AI's
@@ -19,6 +21,7 @@ usual failure mode of a link that is not actually public.
 """
 from __future__ import annotations
 
+import html
 import json
 import re
 import urllib.error
@@ -122,14 +125,77 @@ def _gdrive_doc(doc_id: str) -> Fetched:
     raise LinkNotPublic("Google Doc export returned a web page - share it as 'Anyone with the link' first")
 
 
+_GD_ENTRY = re.compile(r'<div class="flip-entry" id="entry-([\w-]+)".*?<a href="([^"]+)".*?class="flip-entry-title">([^<]*)<', re.S)
+_GD_TEXT_EXT = (".md", ".markdown", ".txt")
+GD_MAX_DEPTH = 3
+GD_MAX_FILES = 200
+_GD_NOT_PUBLIC = ("this Google Drive folder is not shared publicly, so Drive asks for a sign-in - in Drive: "
+                  "Share -> General access -> 'Anyone with the link' (Viewer), then copy the link again")
+
+
 def _gdrive_folder(folder_id: str, api_key: str) -> list[Fetched]:
-    if not api_key:
-        raise ConnectorError("listing a Google Drive folder needs GOOGLE_API_KEY (a free API key, no OAuth); "
-                             "share individual file links instead, or set the key")
+    if api_key:
+        return _gdrive_folder_api(folder_id, api_key)
+    out: list[Fetched] = []
+    _gdrive_walk(folder_id, 0, set(), out)
+    if not out:
+        raise ConnectorError("the folder holds no markdown (.md / .txt) files or Google Docs")
+    return out
+
+
+def gdrive_list_public_folder(folder_id: str) -> list[tuple[str, str, str]]:
+    """[(kind, id, name)] for one public folder, kind in {folder, doc, file}. No key, no sign-in."""
+    try:
+        data, _, _ = _get(f"https://drive.google.com/embeddedfolderview?id={urllib.parse.quote(folder_id)}",
+                          accept="text/html")
+    except LinkNotPublic as exc:
+        raise LinkNotPublic(_GD_NOT_PUBLIC) from exc
+    except ConnectorError as exc:
+        if "HTTP 404" in str(exc):
+            raise ConnectorError("Google Drive folder not found - check the link") from exc
+        raise
+    page = data.decode("utf-8", "replace")
+    if "flip-entries" not in page:
+        raise LinkNotPublic(_GD_NOT_PUBLIC)
+    rows = []
+    for entry_id, href, title in _GD_ENTRY.findall(page):
+        name = html.unescape(title).strip()
+        if "/drive/folders/" in href or "/drive/u/" in href and "/folders/" in href:
+            rows.append(("folder", entry_id, name))
+        elif "docs.google.com/document/d/" in href:
+            rows.append(("doc", entry_id, name))
+        else:
+            rows.append(("file", entry_id, name))
+    return rows
+
+
+def _gdrive_walk(folder_id: str, depth: int, seen: set[str], out: list[Fetched]) -> None:
+    if folder_id in seen or len(out) >= GD_MAX_FILES:
+        return
+    seen.add(folder_id)
+    for kind, fid, name in gdrive_list_public_folder(folder_id):
+        if len(out) >= GD_MAX_FILES:
+            return
+        if kind == "folder":
+            if depth < GD_MAX_DEPTH:
+                _gdrive_walk(fid, depth + 1, seen, out)
+        elif kind == "doc":
+            out.append(_gdrive_doc(fid))
+        elif name.lower().endswith(_GD_TEXT_EXT):
+            f = _gdrive_file(fid)
+            if f.filename.startswith("gdrive-"):          # no Content-Disposition: keep Drive's own name
+                f = Fetched(filename=_filename_from("", name), data=f.data, origin=f.origin)
+            out.append(f)
+
+
+def _gdrive_folder_api(folder_id: str, api_key: str) -> list[Fetched]:
     q = urllib.parse.quote(f"'{folder_id}' in parents and trashed = false")
     url = (f"https://www.googleapis.com/drive/v3/files?q={q}&key={api_key}"
            f"&fields=files(id,name,mimeType)&pageSize=200")
-    data, ctype, _ = _get(url, accept="application/json")
+    try:
+        data, ctype, _ = _get(url, accept="application/json")
+    except LinkNotPublic as exc:
+        raise LinkNotPublic(_GD_NOT_PUBLIC) from exc
     try:
         files = json.loads(data).get("files", [])
     except json.JSONDecodeError as exc:
@@ -139,10 +205,10 @@ def _gdrive_folder(folder_id: str, api_key: str) -> list[Fetched]:
         name, mime, fid = f.get("name", ""), f.get("mimeType", ""), f.get("id", "")
         if mime == "application/vnd.google-apps.document":
             out.append(_gdrive_doc(fid))
-        elif name.lower().endswith((".md", ".markdown", ".txt")):
+        elif name.lower().endswith(_GD_TEXT_EXT):
             out.append(_gdrive_file(fid))
     if not out:
-        raise ConnectorError("the folder holds no markdown (.md) files or Google Docs")
+        raise ConnectorError("the folder holds no markdown (.md / .txt) files or Google Docs")
     return out
 
 

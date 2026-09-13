@@ -94,8 +94,8 @@
     corpus:     { label: "OrbitMesh corpus", mono: "OM", cap: "supplied · read-only", color: "#2457c5" },
     upload:     { label: "Upload files", mono: "UP", cap: ".md documents", color: "#7c4dff",
                   note: "Drop Markdown files on this node. Uploading a file with the same name again replaces its chunks." },
-    gdrive:     { label: "Google Drive", mono: "GD", cap: "public link", color: "#1f8a4c", ph: "https://drive.google.com/file/d/…",
-                  note: "A public file or Google Doc link (Share → Anyone with the link). Folder links need GOOGLE_API_KEY on the server." },
+    gdrive:     { label: "Google Drive", mono: "GD", cap: "public link", color: "#1f8a4c", ph: "https://drive.google.com/drive/folders/…",
+                  note: "A file, Google Doc or folder link shared as “Anyone with the link” (Share → General access). Folders are read with no key or sign-in, including subfolders; .md, .txt and Google Docs are taken." },
     sharepoint: { label: "SharePoint", mono: "SP", cap: "anyone-with-link", color: "#0f8b8d", ph: "https://<tenant>.sharepoint.com/:f:/…",
                   note: "An “Anyone with the link” file or folder link. No Microsoft sign-in; folders are crawled for .md files." },
   };
@@ -183,7 +183,7 @@
       el.style.cssText = `--k:${d.color};left:${n.x}px;top:${n.y}px`;
       el.dataset.uid = n.uid;
       const pills = n.c
-        ? `<span class="npill">${n.c.documents.length} doc${n.c.documents.length === 1 ? "" : "s"}</span><span class="npill">${n.c.chunks} chunks</span>${n.c.read_only ? `<span class="npill">read-only</span>` : ""}${st === "off" ? `<span class="npill warn">off</span>` : ""}`
+        ? `<span class="npill">${n.c.documents.length} doc${n.c.documents.length === 1 ? "" : "s"}</span><span class="npill">${n.c.chunks} chunk${n.c.chunks === 1 ? "" : "s"}</span>${n.c.read_only ? `<span class="npill">read-only</span>` : ""}${st === "off" ? `<span class="npill warn">off</span>` : ""}`
         : `<span class="npill warn">draft</span>`;
       el.innerHTML = `<div class="nhead"><span class="mono-chip" style="--k:${d.color}">${d.mono}</span><div class="nt"><div class="nname" title="${esc(n.c ? n.c.name : n.draft.name)}">${esc(n.c ? n.c.name : n.draft.name)}</div><div class="nkind">${esc(n.kind)}</div></div><span class="status ${st}" title="${esc(why)}"></span></div>
         <div class="nbody">${pills}</div>${n.c && n.c.last_error ? `<div class="nreason" title="${esc(n.c.last_error)}">${esc(n.c.last_error)}</div>` : ""}`;

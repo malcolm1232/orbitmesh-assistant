@@ -58,15 +58,62 @@ def test_gdrive_private_link_is_reported_as_not_public(monkeypatch):
         fetchers.fetch_gdrive("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view")
 
 
-def test_gdrive_folder_requires_api_key_and_lists_with_it(monkeypatch):
-    with pytest.raises(ConnectorError, match="GOOGLE_API_KEY"):
-        fetchers.fetch_gdrive("https://drive.google.com/drive/folders/1FolderIdXyzAbc", api_key="")
+def _folder_view(*entries):
+    """The markup Drive's embeddedfolderview serves for a public folder: (href, title) per entry."""
+    rows = "".join(
+        f'<div class="flip-entry" id="entry-{href.rstrip("/").split("/")[-2 if href.endswith("/view") or href.endswith("/edit") else -1]}" tabindex="0">'
+        f'<div class="flip-entry-info"><a href="{href}" target="_blank"><div class="flip-entry-title">{title}</div></a></div></div>'
+        for href, title in entries)
+    return FakeResp(f'<html><body><div class="flip-entries">{rows}</div></body></html>'.encode(), ctype="text/html")
+
+
+def test_gdrive_public_folder_is_listed_without_a_key_and_subfolders_are_followed(monkeypatch):
+    calls = _mock(monkeypatch, {
+        "embeddedfolderview?id=1RootFolderAAAA": _folder_view(
+            ("https://drive.google.com/file/d/1MdFileAAAAAAAA/view", "N1 field notes.md"),
+            ("https://docs.google.com/document/d/1GoogleDocAAAAA/edit", "Pro FAQ"),
+            ("https://drive.google.com/file/d/1PictureAAAAAAA/view", "diagram.png"),
+            ("https://drive.google.com/drive/folders/1SubFolderAAAAA", "Archive &amp; old"),
+        ),
+        "embeddedfolderview?id=1SubFolderAAAAA": _folder_view(
+            ("https://drive.google.com/file/d/1TxtFileAAAAAAA/view", "release-2023.txt"),
+            ("https://drive.google.com/drive/folders/1RootFolderAAAA", "loop back to the root"),
+        ),
+        "id=1MdFileAAAAAAAA": FakeResp(b"# N1 field notes\n\nbody"),
+        "document/d/1GoogleDocAAAAA/export?format=md": FakeResp(b"# Pro FAQ\n\nbody", disp='attachment; filename="Pro FAQ.md"'),
+        "id=1TxtFileAAAAAAA": FakeResp(b"release notes", ctype="text/plain"),
+    })
+    out = fetchers.fetch_gdrive("https://drive.google.com/drive/folders/1RootFolderAAAA?usp=drive_link", api_key="")
+    assert [(o.filename, o.data[:9]) for o in out] == [
+        ("N1 field notes.md", b"# N1 fiel"), ("Pro FAQ.md", b"# Pro FAQ"), ("release-2023.txt", b"release n")]
+    assert not any("googleapis.com" in c for c in calls)            # no key, no API
+    assert not any("1PictureAAAAAAA" in c for c in calls)            # non-text files are never downloaded
+    assert sum("embeddedfolderview?id=1RootFolderAAAA" in c for c in calls) == 1   # the loop back is not re-walked
+
+
+def test_gdrive_private_folder_is_reported_as_not_shared_not_as_a_missing_key(monkeypatch):
+    err = fetchers.urllib.error.HTTPError("https://drive.google.com/embeddedfolderview", 401, "Unauthorized", {}, None)
+    _mock(monkeypatch, {"embeddedfolderview?id=1PrivateFolderA": err})
+    with pytest.raises(fetchers.LinkNotPublic, match="Anyone with the link") as exc:
+        fetchers.fetch_gdrive("https://drive.google.com/drive/folders/1PrivateFolderA?usp=drive_link")
+    assert "GOOGLE_API_KEY" not in str(exc.value)
+
+
+def test_gdrive_folder_with_no_text_files_says_so(monkeypatch):
+    _mock(monkeypatch, {"embeddedfolderview?id=1ImagesOnlyAAAA": _folder_view(
+        ("https://drive.google.com/file/d/1PictureAAAAAAA/view", "diagram.png"))})
+    with pytest.raises(ConnectorError, match="no markdown"):
+        fetchers.fetch_gdrive("https://drive.google.com/drive/folders/1ImagesOnlyAAAA")
+
+
+def test_gdrive_folder_uses_the_drive_api_when_a_key_is_set(monkeypatch):
     listing = json.dumps({"files": [{"id": "1FileAAAAAAAAAA", "name": "a.md", "mimeType": "text/markdown"},
                                     {"id": "1ImgBBBBBBBBBBB", "name": "pic.png", "mimeType": "image/png"}]}).encode()
-    _mock(monkeypatch, {"googleapis.com/drive/v3/files?q=": FakeResp(listing, ctype="application/json"),
-                        "id=1FileAAAAAAAAAA": FakeResp(b"# A\n\ntext")})
+    calls = _mock(monkeypatch, {"googleapis.com/drive/v3/files?q=": FakeResp(listing, ctype="application/json"),
+                                "id=1FileAAAAAAAAAA": FakeResp(b"# A\n\ntext", disp='attachment; filename="a.md"')})
     out = fetchers.fetch_gdrive("https://drive.google.com/drive/folders/1FolderIdXyzAbc", api_key="k")
-    assert [o.filename for o in out] == ["gdrive-1FileAAA.md"] or out[0].data == b"# A\n\ntext"
+    assert [(o.filename, o.data) for o in out] == [("a.md", b"# A\n\ntext")]
+    assert not any("embeddedfolderview" in c for c in calls)
 
 
 def test_sharepoint_file_link_uses_download_flag(monkeypatch):

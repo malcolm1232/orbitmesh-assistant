@@ -9,7 +9,7 @@ DBSearch.AI.
   (manifest id for the corpus, filename slug otherwise) so citations keep their shape.
 - Kinds: `corpus` (supplied OrbitMesh corpus, seeded from `corpus/manifest.json`, read-only, always
   present), `upload` (.md files via the UI), `gdrive` (public Drive file link; public folder link
-  only with `GOOGLE_API_KEY`), `sharepoint` ("Anyone with the link" file link via `download=1`, or folder link crawled
+  keyless via embeddedfolderview, subfolders followed; Drive API v3 when `GOOGLE_API_KEY` is set), `sharepoint` ("Anyone with the link" file link via `download=1`, or folder link crawled
   anonymously through the FedAuth badge + classic REST, ported from DBSearch.AI).
 - Storage: `data/connectors/<id>/connector.json` + `docs/*.md`. Document metadata (title, version,
   effective date, product line, archived) derived from the file exactly like the corpus.
