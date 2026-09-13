@@ -31,7 +31,7 @@ Implemented (GitHub Actions + Cloud Build; see the two workflow files and `cloud
 
 | stage | what runs | where |
 |---|---|---|
-| **test** | `make test` (78 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, JSONL contract) with the hashing embedder and mock LLM - no credentials, no network | `ci.yml` job `tests`, also the first Cloud Build step |
+| **test** | `make test` (81 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, JSONL contract) with the hashing embedder and mock LLM - no credentials, no network | `ci.yml` job `tests`, also the first Cloud Build step |
 | **ingest + retrieval eval** | ingest into an ephemeral Qdrant service container twice (second run must report `stale deleted=0`), then `make eval` with the real local embedding model and the mock LLM; results uploaded as an artifact | `ci.yml` job `retrieval-eval`, triggered by changes to `corpus/**` or the ingestion/retrieval modules |
 | **build** | `docker build` of the single image; the corpus is ingested during the build so a broken corpus fails the build, not the deploy | `deploy.yml` / `cloudbuild.yaml` |
 | **push** | Artifact Registry `asia-southeast1-docker.pkg.dev/<project>/orbitmesh/assistant:<git sha>` | same |

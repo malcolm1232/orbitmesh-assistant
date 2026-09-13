@@ -3,6 +3,7 @@ FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     MODEL_CACHE_DIR=/models QDRANT_PATH=/data/qdrant SESSION_DIR=/data/sessions LLM_CACHE_DIR=/data/llm_cache \
+    CONNECTORS_DIR=/data/connectors INDEX_STATE_PATH=/data/index_state.json \
     CORPUS_DIR=/app/corpus HF_HUB_DISABLE_TELEMETRY=1
 
 WORKDIR /app

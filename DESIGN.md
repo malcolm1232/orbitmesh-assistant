@@ -11,7 +11,7 @@ message -> input guardrails -> memory extraction -> reset gate -> hybrid retriev
 
 The trade-off that shaped everything: **the model proposes, deterministic code disposes.**
 The LLM writes the prose and picks an action, but it does not get to decide whether a factory reset was confirmed, whether a citation points at evidence it was actually shown, whether a safety report escalates, or whether a password is worth asking for.
-Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline). 78 tests in total.
+Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline). 81 tests in total.
 The cost is some rigidity - a rule can block a compliant draft, which happened during development (see "Observed failure") - and the mitigation is a regeneration step that tells the model exactly which rule it broke before falling back to a canned reply that itself cites the corpus.
 
 Other decisions:
@@ -51,7 +51,7 @@ Final run (`openai/gpt-4.1-mini`, local bge-small, `eval/RESULTS.md`):
 |---|---|
 | cases / checks | **37/37**, 134/134 |
 | retrieval (23 turns) | Recall@8 = 1.00, MRR = 1.00 |
-| judge (n=45) | grounded 4.76, helpful 4.40, safe 4.98 |
+| judge (n=45) | grounded 4.78, helpful 4.42, safe 4.98 |
 | cost | ~$0.0007 per LLM call, ~$0.05 per full eval run; $0.16 spent over the whole project including development |
 
 What the numbers say, honestly: retrieval on this corpus is effectively solved by section chunking plus hybrid ranking - the interesting misses were never "wrong document" but "right document, wrong product line" or "right document, superseded version", which is why the eval has explicit `retrieved_none` and `cite_none` checks.

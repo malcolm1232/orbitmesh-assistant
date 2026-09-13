@@ -19,7 +19,7 @@ cp .env.example .env            # put OPENROUTER_API_KEY=sk-or-... in .env
 make setup                      # venv + dependencies
 make ingest                     # index corpus/ (embedded Qdrant under data/qdrant, ~5 s)
 make chat                       # interactive conversation
-make test                       # 78 automated tests, no network, no key
+make test                       # 81 automated tests, no network, no key
 make eval                       # evaluation suite + summary (uses the LLM; ~$0.05 per run)
 ```
 
