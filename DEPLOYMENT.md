@@ -23,7 +23,7 @@ Why not the alternatives:
 
 The vector index is currently baked into the image (embedded Qdrant under `/data/qdrant`).
 That is deliberate for a 4k-word corpus: a corpus change is a code change, goes through CI, and produces a new immutable revision - there is no runtime store to drift.
-Session state lives on the instance's disk (`/data/sessions`), which is fine for a demo but **not** for multi-instance production: the "Described only" section moves it to Memorystore (Redis) or Firestore with a TTL, keyed by `session_id`.
+Connectors added through the UI and session state live on the instance's disk (`/data/connectors`, `/data/sessions`) - on Cloud Run that disk is per instance and ephemeral, so UI-added connectors are a demo feature there (the compose stack persists them in the `app_data` volume). For production they move to a bucket (documents) and Memorystore/Firestore (sessions): the "Described only" section moves it to Memorystore (Redis) or Firestore with a TTL, keyed by `session_id`.
 
 ## CI/CD pipeline
 
@@ -31,7 +31,7 @@ Implemented (GitHub Actions + Cloud Build; see the two workflow files and `cloud
 
 | stage | what runs | where |
 |---|---|---|
-| **test** | `make test` (58 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, JSONL contract) with the hashing embedder and mock LLM - no credentials, no network | `ci.yml` job `tests`, also the first Cloud Build step |
+| **test** | `make test` (78 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, JSONL contract) with the hashing embedder and mock LLM - no credentials, no network | `ci.yml` job `tests`, also the first Cloud Build step |
 | **ingest + retrieval eval** | ingest into an ephemeral Qdrant service container twice (second run must report `stale deleted=0`), then `make eval` with the real local embedding model and the mock LLM; results uploaded as an artifact | `ci.yml` job `retrieval-eval`, triggered by changes to `corpus/**` or the ingestion/retrieval modules |
 | **build** | `docker build` of the single image; the corpus is ingested during the build so a broken corpus fails the build, not the deploy | `deploy.yml` / `cloudbuild.yaml` |
 | **push** | Artifact Registry `asia-southeast1-docker.pkg.dev/<project>/orbitmesh/assistant:<git sha>` | same |

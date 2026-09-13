@@ -19,7 +19,7 @@ cp .env.example .env            # put OPENROUTER_API_KEY=sk-or-... in .env
 make setup                      # venv + dependencies
 make ingest                     # index corpus/ (embedded Qdrant under data/qdrant, ~5 s)
 make chat                       # interactive conversation
-make test                       # 58 automated tests, no network, no key
+make test                       # 78 automated tests, no network, no key
 make eval                       # evaluation suite + summary (uses the LLM; ~$0.05 per run)
 ```
 
@@ -44,12 +44,12 @@ Diagnostics are JSON lines on **stderr**; stdout carries only the protocol.
 
 ## Run with Docker Compose
 
-The compose file starts Qdrant and the assistant (ingesting on start-up), and exposes an HTTP wrapper on `:8080` with a small browser page for manual testing.
+The compose file starts Qdrant and the assistant (ingesting on start-up), and exposes the HTTP wrapper and web UI on `:8080`.
 
 ```bash
 cp .env.example .env                       # add OPENROUTER_API_KEY (or set LLM_PROVIDER=mock)
 docker compose up -d --build --wait        # qdrant + ingest + app
-open http://localhost:8080                 # browser chat page
+open http://localhost:8080                 # web UI: Ask / Connectors / Dashboard
 curl -s localhost:8080/health
 curl -s -X POST localhost:8080/chat -H 'content-type: application/json' \
      -d '{"session_id":"demo","message":"My N1 is flashing amber"}'
@@ -61,6 +61,16 @@ docker compose down -v                     # stop and delete the index volume
 ```
 
 The image bakes the local embedding model and a pre-built index, so the container works with no network access except to OpenRouter.
+
+## Web UI: Ask, Connectors, Dashboard
+
+`make serve` (or the compose stack) serves a small web app at `http://localhost:8080` - vanilla HTML/JS, no build step, no external resources, so it works offline:
+
+- **Ask** - the same multi-turn agent as the CLI, with the action chip, citations shown as `connector / document / section`, the facts the assistant remembers, and the evidence it retrieved for the last turn.
+- **Connectors** - the DBSearch-style connector model: every connector feeds **one shared knowledge base**. The supplied corpus is the read-only first connector; add an **upload** connector and drop `.md` files on it, or a **Google Drive** / **SharePoint** connector from a public link with no credentials of any kind: Drive file and Google Doc links (a public Drive *folder* needs a free `GOOGLE_API_KEY` to list), SharePoint / OneDrive "Anyone with the link" file **and folder** links (folders are crawled through SharePoint's anonymous FedAuth badge and classic REST, the mechanism from DBSearch.AI's SharePoint-link connector). Toggle a connector off and its chunks leave the index on the next sync; re-upload a revised file and its chunks are replaced, never duplicated. Every write goes through the same `sync_all()` that `make ingest` uses.
+- **Dashboard** - turns by action, latency distribution, guardrail activity, LLM cost, index size per connector, and recent conversations (facts and outcomes only - never message text).
+
+The HTTP API behind it (`/api/connectors`, `/api/connectors/{id}/upload`, `/api/connectors/{id}/sync`, `/api/ingest`, `/api/stats`, `/api/sessions`, plus `/chat`, `/health`, `/metrics`) is listed at the top of `src/orbitmesh/server.py`.
 
 ## Configuration
 
@@ -75,6 +85,8 @@ All settings are environment variables (see [`.env.example`](.env.example)); the
 | `QDRANT_URL` | empty | set to use a Qdrant server (compose: `http://qdrant:6333`); empty = embedded Qdrant at `QDRANT_PATH` |
 | `LLM_CACHE` | `1` | cache LLM replies on disk so eval re-runs and replays are free |
 | `LOG_CONTENT` | `0` | log customer/assistant text (development only) |
+| `GOOGLE_API_KEY` | empty | free Drive API key; only needed to list a public Drive *folder* connector |
+| `CONNECTORS_DIR` | `data/connectors` | where connector definitions and fetched documents live |
 
 ### No-credentials mode (used by CI)
 
@@ -115,8 +127,11 @@ src/orbitmesh/
   guardrails.py    input/output guardrails
   llm.py           OpenRouter client (JSON mode, disk cache) and the mock
   agent.py         the turn pipeline
+  connectors.py    connector store: corpus (read-only) + upload + gdrive + sharepoint, one shared index
+  fetchers.py      public-link fetchers (Drive file/doc/folder, SharePoint file) - no OAuth
+  sync.py          sync_all(): enabled connectors -> chunks -> idempotent vector-store reconcile
   cli.py           `orbitmesh ingest|chat [--jsonl]|serve`
-  server.py        HTTP wrapper: POST /chat, GET /health, GET /metrics, GET /
+  server.py        HTTP API + web UI (Ask / Connectors / Dashboard); static/ holds the page
   observability.py JSON logging to stderr + Prometheus metrics
 eval/              cases.jsonl (37 scripted conversations) + run_eval.py (+ optional LLM judge)
 tests/             58 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, agent, JSONL contract
@@ -126,7 +141,7 @@ infra/terraform/   GCP: Cloud Run, Artifact Registry, Secret Manager, uptime che
 
 ## Updating the corpus
 
-Edit or add files under `corpus/` and the entry in `corpus/manifest.json`, then `make ingest` (or `docker compose run --rm ingest`).
+Edit or add files under `corpus/` and the entry in `corpus/manifest.json`, then `make ingest` (or `docker compose run --rm ingest`) - or add the revised file through an upload connector in the web UI.
 Chunk ids are content hashes, so unchanged sections are rewritten in place, edited sections replace their old chunk, and documents removed from the manifest lose all their chunks - re-ingestion never accumulates duplicates (`tests/test_vectorstore.py` proves it).
 The CI workflow runs the same check on every corpus change: it ingests twice into an ephemeral Qdrant and asserts the second run deletes nothing.
 

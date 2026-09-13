@@ -41,6 +41,13 @@ MAX_CHUNK_CHARS = 1800
 OVERLAP_PARAGRAPHS = 1
 
 
+CORPUS_CONNECTOR_ID = "orbitmesh-corpus"
+
+_H1 = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
+_VERSION_LINE = re.compile(r"^\*\*(?:Document|Policy) version:\*\*\s*(\S+)", re.IGNORECASE | re.MULTILINE)
+_DATE_LINE = re.compile(r"^\*\*(?:Published|Effective):\*\*\s*(\S+)", re.IGNORECASE | re.MULTILINE)
+
+
 @dataclass(frozen=True)
 class DocumentMeta:
     source_id: str
@@ -48,6 +55,17 @@ class DocumentMeta:
     path: Path
     version: str
     effective_date: str
+    connector_id: str = CORPUS_CONNECTOR_ID
+
+
+def describe_markdown(text: str, fallback_title: str) -> tuple[str, str, str]:
+    """(title, version, effective_date) read from a markdown document's own header lines -
+    the same conventions the supplied corpus uses - so an uploaded document gets the same
+    freshness metadata as a manifest entry. Missing values are empty strings."""
+    h1, ver, date = _H1.search(text), _VERSION_LINE.search(text), _DATE_LINE.search(text)
+    return ((h1.group(1) if h1 else fallback_title).strip(),
+            (ver.group(1) if ver else "").strip(),
+            (date.group(1) if date else "").strip())
 
 
 @dataclass
@@ -65,6 +83,7 @@ class Chunk:
     archived: bool
     doc_hash: str
     part: int = 0           # window index within the section, 0 for the whole section
+    connector_id: str = CORPUS_CONNECTOR_ID
     extra: dict = field(default_factory=dict)
 
     @property
@@ -87,6 +106,7 @@ class Chunk:
             "archived": self.archived,
             "doc_hash": self.doc_hash,
             "part": self.part,
+            "connector_id": self.connector_id,
         }
 
     @staticmethod
@@ -97,6 +117,7 @@ class Chunk:
             locator=p.get("locator", ""), subsection=p.get("subsection", ""), text=p["text"],
             product_line=p.get("product_line", "all"), product_explicit=bool(p.get("product_explicit")),
             archived=bool(p.get("archived")), doc_hash=p.get("doc_hash", ""), part=int(p.get("part", 0)),
+            connector_id=p.get("connector_id", CORPUS_CONNECTOR_ID),
         )
 
 
@@ -188,9 +209,9 @@ def _windows(body: str) -> list[str]:
     return out
 
 
-def _chunk_id(source_id: str, locator: str, subsection: str, part: int, text: str) -> str:
-    h = hashlib.sha1(f"{source_id}\x1f{locator}\x1f{subsection}\x1f{part}\x1f{text}".encode("utf-8")).hexdigest()
-    return h[:24]
+def _chunk_id(connector_id: str, source_id: str, locator: str, subsection: str, part: int, text: str) -> str:
+    key = f"{connector_id}\x1f{source_id}\x1f{locator}\x1f{subsection}\x1f{part}\x1f{text}"
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()[:24]
 
 
 def chunk_document(meta: DocumentMeta) -> list[Chunk]:
@@ -206,11 +227,11 @@ def chunk_document(meta: DocumentMeta) -> list[Chunk]:
             heading_path = " > ".join(x for x in (meta.title, h2 if h2 != meta.title else "", h3) if x)
             text = f"{heading_path}\n\n{window}"
             chunks.append(Chunk(
-                chunk_id=_chunk_id(meta.source_id, h2, h3, part, text),
+                chunk_id=_chunk_id(meta.connector_id, meta.source_id, h2, h3, part, text),
                 source_id=meta.source_id, title=meta.title, version=meta.version,
                 effective_date=meta.effective_date, locator=h2, subsection=h3, text=text,
                 product_line=product_line, product_explicit=explicit, archived=archived,
-                doc_hash=doc_hash, part=part,
+                doc_hash=doc_hash, part=part, connector_id=meta.connector_id,
             ))
     return chunks
 

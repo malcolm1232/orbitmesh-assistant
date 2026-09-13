@@ -22,20 +22,22 @@ log = logging.getLogger("orbitmesh.cli")
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
-    from .corpus import load_corpus
+    from .connectors import ConnectorStore
     from .embeddings import build_embedder
+    from .sync import sync_all
     from .vectorstore import VectorStore
 
     s = load_settings()
-    chunks = load_corpus(s.corpus_dir)
     embedder = build_embedder(s.embedding_provider, s.embedding_model, str(s.model_cache_dir))
     store = VectorStore(url=s.qdrant_url, api_key=s.qdrant_api_key, path=s.qdrant_path,
                         collection=s.collection, embedder=embedder)
-    report = store.sync(chunks)
-    docs = sorted({c.source_id for c in chunks})
-    log_event(log, "ingest.done", location=store.location, embedder=embedder.name, documents=len(docs),
+    connectors = ConnectorStore(s.connectors_dir, s.corpus_dir)
+    report = sync_all(connectors, store, s.index_state_path)
+    n_docs = sum(v["documents"] for v in report.connectors.values() if v.get("enabled"))
+    n_conn = sum(1 for v in report.connectors.values() if v.get("enabled"))
+    log_event(log, "ingest.done", location=store.location, embedder=embedder.name, documents=n_docs,
               **report.as_dict())
-    print(f"Indexed {report.total} chunks from {len(docs)} documents into {store.location} "
+    print(f"Indexed {report.total} chunks from {n_docs} documents across {n_conn} connector(s) into {store.location} "
           f"(written={report.written}, stale deleted={report.deleted}, embedder={embedder.name})", file=sys.stderr)
     return 0
 

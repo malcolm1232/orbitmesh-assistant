@@ -48,6 +48,11 @@ class TurnResult:
         return {"response": self.response, "citations": self.citations, "action": self.action,
                 "session_id": self.session_id, "turn": self.turn, "guardrails": self.guardrails}
 
+    def as_ui(self) -> dict:
+        """The JSONL object plus what the web page shows: evidence with connector ids and
+        the facts remembered so far."""
+        return {**self.as_jsonl(), "evidence": self.evidence, "facts": self.facts, "latency_ms": self.latency_ms}
+
 
 class Agent:
     def __init__(self, retriever: Retriever, llm, sessions: SessionStore, *, log_content: bool = False) -> None:
@@ -55,6 +60,10 @@ class Agent:
         self.llm = llm
         self.sessions = sessions
         self.log_content = log_content
+
+    def reload(self, retriever: Retriever) -> None:
+        """Swap in a retriever built over a freshly synced index (the UI's Sync button)."""
+        self.retriever = retriever
 
     # ------------------------------------------------------------------ public entry
     def handle(self, session_id: str, message: str) -> TurnResult:
@@ -182,7 +191,8 @@ class Agent:
             turn=state.turns, facts=dict(state.facts), guardrails=gr, model=getattr(self.llm, "model", ""),
             cached=draft.cached,
             evidence=[{"source_id": h.chunk.source_id, "locator": h.chunk.locator, "subsection": h.chunk.subsection,
-                       "archived": h.chunk.archived, "product_line": h.chunk.product_line, "score": round(h.score, 5)}
+                       "archived": h.chunk.archived, "product_line": h.chunk.product_line, "score": round(h.score, 5),
+                       "connector_id": h.chunk.connector_id, "title": h.chunk.title}
                       for h in hits],
         )
 
@@ -331,18 +341,26 @@ def _sentence_containing(text: str, word: str) -> str:
     return ""
 
 
-def build_agent(settings, *, llm=None):
-    """Wire the whole stack from Settings. Lazy imports keep `--help` fast."""
+def build_agent(settings, *, llm=None, store=None):
+    """Wire the whole stack from Settings. Lazy imports keep `--help` fast. Pass `store` to
+    reuse an already-open vector store (embedded Qdrant allows one client per path)."""
     from .embeddings import build_embedder
     from .llm import build_llm
     from .vectorstore import VectorStore
 
-    embedder = build_embedder(settings.embedding_provider, settings.embedding_model, str(settings.model_cache_dir))
-    store = VectorStore(url=settings.qdrant_url, api_key=settings.qdrant_api_key, path=settings.qdrant_path,
-                        collection=settings.collection, embedder=embedder)
+    if store is None:
+        embedder = build_embedder(settings.embedding_provider, settings.embedding_model, str(settings.model_cache_dir))
+        store = VectorStore(url=settings.qdrant_url, api_key=settings.qdrant_api_key, path=settings.qdrant_path,
+                            collection=settings.collection, embedder=embedder)
     if not store.ready():
         raise RuntimeError(f"vector index at {store.location} is empty - run `make ingest` first")
-    retriever = Retriever(store, candidates=settings.retrieve_candidates, top_k=settings.retrieve_top_k)
-    from .observability import INDEX_CHUNKS
-    INDEX_CHUNKS.set(retriever.size)
+    retriever = build_retriever(settings, store)
     return Agent(retriever, llm or build_llm(settings), SessionStore(settings.session_dir), log_content=settings.log_content)
+
+
+def build_retriever(settings, store) -> Retriever:
+    from .observability import INDEX_CHUNKS
+
+    retriever = Retriever(store, candidates=settings.retrieve_candidates, top_k=settings.retrieve_top_k)
+    INDEX_CHUNKS.set(retriever.size)
+    return retriever

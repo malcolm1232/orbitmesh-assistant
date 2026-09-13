@@ -50,6 +50,10 @@ class Settings:
     # --- retrieval --------------------------------------------------------------------
     retrieve_candidates: int = field(default_factory=lambda: int(_env("RETRIEVE_CANDIDATES", "24")))
     retrieve_top_k: int = field(default_factory=lambda: int(_env("RETRIEVE_TOP_K", "8")))
+    # --- connectors ---------------------------------------------------------------------
+    connectors_dir: Path = field(default_factory=lambda: Path(_env("CONNECTORS_DIR", str(_ROOT / "data" / "connectors"))))
+    index_state_path: Path = field(default_factory=lambda: Path(_env("INDEX_STATE_PATH", str(_ROOT / "data" / "index_state.json"))))
+    google_api_key: str = field(default_factory=lambda: _env("GOOGLE_API_KEY"))
     # --- sessions / logging -----------------------------------------------------------
     session_dir: Path = field(default_factory=lambda: Path(_env("SESSION_DIR", str(_ROOT / "data" / "sessions"))))
     log_level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))

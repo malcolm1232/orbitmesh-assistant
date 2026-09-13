@@ -11,7 +11,7 @@ message -> input guardrails -> memory extraction -> reset gate -> hybrid retriev
 
 The trade-off that shaped everything: **the model proposes, deterministic code disposes.**
 The LLM writes the prose and picks an action, but it does not get to decide whether a factory reset was confirmed, whether a citation points at evidence it was actually shown, whether a safety report escalates, or whether a password is worth asking for.
-Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline).
+Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline). 78 tests in total.
 The cost is some rigidity - a rule can block a compliant draft, which happened during development (see "Observed failure") - and the mitigation is a regeneration step that tells the model exactly which rule it broke before falling back to a canned reply that itself cites the corpus.
 
 Other decisions:
@@ -21,6 +21,7 @@ Other decisions:
 - **Sessions persist to disk** so the JSONL adapter continues a conversation whether the evaluator runs one process or many.
 - **Qdrant in both modes.** Server mode for docker-compose/CI, embedded mode (no daemon) for tests and the zero-dependency quick start - same class, one environment variable.
 - **A real mock.** `LLM_PROVIDER=mock` reads the evidence and state and applies the rules, so CI proves the transport, retrieval, memory and guardrails end to end without a paid call; only prose quality needs the real model.
+- **Connectors, one knowledge base.** The web UI adds DBSearch.AI's connector model: the supplied corpus is a read-only connector, and upload / Google Drive / SharePoint connectors (public links - including anonymous SharePoint folder crawling - no OAuth) feed the same index. Chunks carry `connector_id`, citations keep the assignment's `{source_id, locator}` shape, and enable/disable/re-upload all go through the one idempotent `sync_all()` - so "corpus updates without duplicate chunks" is something a reviewer can click through, not only read about.
 - **Reuse.** The retrieval design (Reciprocal Rank Fusion of dense + lexical, a relevance floor relative to the best hit, content-hash ids with delete-before-upsert for idempotent re-ingest) is adapted from my open-source project DBSearch.AI (Apache-2.0), where it was tuned against a 120-document real corpus. This repository is standalone; nothing there was modified.
 
 ## Chunking and embedding

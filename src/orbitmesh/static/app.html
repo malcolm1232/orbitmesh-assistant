@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OrbitMesh Support Assistant</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="logo">OM</div>
+      <div><div class="brand-name">OrbitMesh</div><div class="brand-sub">Support Assistant</div></div>
+    </div>
+    <a class="nav-item active" data-view="ask" href="#ask"><span class="ico">💬</span> Ask</a>
+    <a class="nav-item" data-view="connectors" href="#connectors"><span class="ico">🔌</span> Connectors</a>
+    <a class="nav-item" data-view="dashboard" href="#dashboard"><span class="ico">📊</span> Dashboard</a>
+    <div class="sidebar-foot">
+      <div id="index-pill" class="pill">index: …</div>
+      <div class="muted small" id="foot-model"></div>
+    </div>
+  </nav>
+
+  <main class="content">
+    <!-- ASK -->
+    <section id="view-ask" class="view active">
+      <header class="view-head">
+        <div><h1>Ask</h1><p class="muted">Multi-turn troubleshooting grounded in the enabled connectors. One step at a time, every claim cited.</p></div>
+        <div class="head-actions">
+          <span class="muted small">session <code id="session-id"></code></span>
+          <button id="new-conv" class="btn ghost">New conversation</button>
+        </div>
+      </header>
+      <div class="ask-grid">
+        <div class="chat-card">
+          <div id="chat-log" class="chat-log"><div class="empty">Describe the problem, e.g. <em>“My node keeps disconnecting”</em>.</div></div>
+          <form id="chat-form" class="chat-form">
+            <input id="chat-input" autocomplete="off" placeholder="Type your message…" maxlength="4000">
+            <button class="btn primary" id="chat-send">Send</button>
+          </form>
+        </div>
+        <aside class="side-card">
+          <h3>What the assistant remembers</h3>
+          <dl id="facts" class="facts"><dd class="muted">nothing yet</dd></dl>
+          <h3>Last turn</h3>
+          <div id="turn-meta" class="muted small">-</div>
+          <h3>Evidence retrieved</h3>
+          <ol id="evidence" class="evidence"><li class="muted">-</li></ol>
+        </aside>
+      </div>
+    </section>
+
+    <!-- CONNECTORS -->
+    <section id="view-connectors" class="view">
+      <header class="view-head">
+        <div><h1>Connectors</h1><p class="muted">Every connector feeds one shared knowledge base. Disable one and its chunks leave the index on the next sync; re-upload a revised file and its chunks are replaced, never duplicated.</p></div>
+        <div class="head-actions">
+          <button id="sync-all" class="btn ghost">Sync all</button>
+          <button id="add-connector" class="btn primary">Add connector</button>
+        </div>
+      </header>
+      <div id="connector-list" class="connector-list"></div>
+    </section>
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view">
+      <header class="view-head">
+        <div><h1>Dashboard</h1><p class="muted">Live numbers from this process (<span id="dash-uptime"></span>). The same signals are exported at <code>/metrics</code> and, on GCP, as log-based metrics with alerts.</p></div>
+        <div class="head-actions"><button id="dash-refresh" class="btn ghost">Refresh</button></div>
+      </header>
+      <div class="cards" id="dash-cards"></div>
+      <div class="charts">
+        <div class="chart-card"><h3>Turns by action</h3><canvas id="chart-actions" width="520" height="220"></canvas></div>
+        <div class="chart-card"><h3>Turn latency distribution (s)</h3><canvas id="chart-latency" width="520" height="220"></canvas></div>
+        <div class="chart-card"><h3>Guardrails</h3><canvas id="chart-guard" width="520" height="220"></canvas></div>
+        <div class="chart-card"><h3>Chunks per connector</h3><canvas id="chart-connectors" width="520" height="220"></canvas></div>
+      </div>
+      <h3 class="section-title">Recent conversations</h3>
+      <div class="table-wrap"><table id="sessions-table"><thead><tr><th>session</th><th>turns</th><th>last action</th><th>outcome</th><th>facts</th><th>updated</th></tr></thead><tbody></tbody></table></div>
+    </section>
+  </main>
+</div>
+
+<!-- add connector modal -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <h2>Add connector</h2>
+    <label>Name <input id="c-name" placeholder="e.g. Pro Series updates"></label>
+    <label>Kind
+      <select id="c-kind">
+        <option value="upload">Upload .md files</option>
+        <option value="gdrive">Google Drive public link</option>
+        <option value="sharepoint">SharePoint / OneDrive public link</option>
+      </select>
+    </label>
+    <label id="c-source-row" hidden>Link <input id="c-source" placeholder="https://…"></label>
+    <p class="muted small" id="c-hint"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c-cancel">Cancel</button>
+      <button class="btn primary" id="c-create">Create</button>
+    </div>
+    <p id="c-error" class="error" hidden></p>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
