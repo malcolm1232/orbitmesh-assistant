@@ -8,7 +8,7 @@ Everything under **Implemented** exists in `infra/terraform/`, `cloudbuild.yaml`
 The assistant is a stateless request/response service with bursty, low average traffic and a cold-start budget of a few seconds (the ONNX embedding model and the corpus index load in ~2 s from the image).
 That profile is exactly what Cloud Run is for:
 
-- **Scale to zero.** A support bot for one product line idles most of the day. `min_instance_count = 0` means the demo costs nothing while nobody is talking to it; `max_instance_count = 1` keeps the demo's UI-added connectors and sessions on one instance disk (production would move that state out and raise the cap - see State below).
+- **Scale to zero.** A support bot for one product line idles most of the day. `min_instance_count = 0` means the demo costs nothing while nobody is talking to it; `max_instance_count = 1` keeps a single writer on the state bucket (production would move sessions to a database and raise the cap - see State below).
 - **One image, one artefact.** The same `Dockerfile` that `docker compose` uses locally is what Cloud Run runs. The embedding model and the ingested index are baked at build time, so a container is fully functional with no network calls except to OpenRouter.
 - **Concurrency without threads to manage.** Each turn is dominated by one LLM round-trip (1-5 s). Cloud Run's request concurrency (default 80) lets one small instance hold many idle-waiting conversations.
 - **Managed TLS, IAM, probes, revisions and rollback** come for free, and the request/instance/latency metrics feed the dashboard without an agent.
@@ -23,7 +23,12 @@ Why not the alternatives:
 
 The vector index is currently baked into the image (embedded Qdrant under `/data/qdrant`).
 That is deliberate for a 4k-word corpus: a corpus change is a code change, goes through CI, and produces a new immutable revision - there is no runtime store to drift.
-Connectors added through the UI and session state live on the instance's disk (`/data/connectors`, `/data/sessions`) - on Cloud Run that disk is per instance and ephemeral, so UI-added connectors are a demo feature there (the compose stack persists them in the `app_data` volume). For production they move to a bucket (documents) and Memorystore/Firestore (sessions): the "Described only" section moves it to Memorystore (Redis) or Firestore with a TTL, keyed by `session_id`.
+Connectors added through the UI and session state live in a Cloud Storage bucket (`<project>-orbitmesh-assistant-state`) mounted at `/state` with Cloud Storage FUSE (`CONNECTORS_DIR=/state/connectors`, `SESSION_DIR=/state/sessions`; gen2 execution environment, mounted as the image's uid 1000).
+They used to live on the instance's in-memory disk, so every scale-to-zero, crash or deploy deleted them.
+The vector index stays on local disk because it is derived data: on start-up the fingerprint of the bucket's connectors differs from the baked index and `sync_all()` re-embeds them (verified by forcing a new revision: the Drive node came back with the same 33 chunks).
+The compose stack persists the same directories in the `app_data` volume.
+FUSE has no file locking, which is why the service stays at one instance.
+At real load, sessions move to Memorystore (Redis) or Firestore with a TTL, keyed by `session_id` (see "Described only").
 
 ## CI/CD pipeline
 

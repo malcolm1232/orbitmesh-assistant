@@ -14,6 +14,7 @@ locals {
     "cloudbuild.googleapis.com",
     "monitoring.googleapis.com",
     "logging.googleapis.com",
+    "storage.googleapis.com",
   ]
 }
 
@@ -53,6 +54,26 @@ resource "google_secret_manager_secret_iam_member" "runtime_reads_key" {
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }
 
+# --- state that must outlive an instance -------------------------------------------------
+# Connectors added in the web UI and conversation sessions used to live on the instance's
+# in-memory disk, so every scale-to-zero, crash or deploy silently deleted them. They are small
+# files, written by one instance (max_instance_count = 1), so a Cloud Storage FUSE mount is enough.
+# The vector index stays on local disk: it is derived data and start-up re-syncs it from these files.
+resource "google_storage_bucket" "state" {
+  name                        = "${var.project_id}-${var.service_name}-state"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+  force_destroy               = true
+  depends_on                  = [google_project_service.apis]
+}
+
+resource "google_storage_bucket_iam_member" "runtime_state" {
+  bucket = google_storage_bucket.state.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.runtime.email}"
+}
+
 # --- compute -------------------------------------------------------------------------
 resource "google_cloud_run_v2_service" "app" {
   name     = var.service_name
@@ -60,14 +81,35 @@ resource "google_cloud_run_v2_service" "app" {
   ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
-    service_account = google_service_account.runtime.email
+    service_account       = google_service_account.runtime.email
+    execution_environment = "EXECUTION_ENVIRONMENT_GEN2" # required for Cloud Storage volume mounts
     scaling {
       min_instance_count = 0
-      max_instance_count = 1   # demo: UI-added connectors + sessions live on the instance disk (see DEPLOYMENT.md)
+      max_instance_count = 1 # one writer for the state bucket; each instance keeps its own local index
+    }
+    volumes {
+      name = "state"
+      gcs {
+        bucket        = google_storage_bucket.state.name
+        read_only     = false
+        mount_options = ["uid=1000", "gid=1000", "implicit-dirs"] # the image runs as `app` (uid 1000)
+      }
     }
     containers {
       image = var.image
       ports { container_port = 8080 }
+      volume_mounts {
+        name       = "state"
+        mount_path = "/state"
+      }
+      env {
+        name  = "CONNECTORS_DIR"
+        value = "/state/connectors"
+      }
+      env {
+        name  = "SESSION_DIR"
+        value = "/state/sessions"
+      }
       resources {
         limits            = { cpu = "1", memory = "1Gi" }
         cpu_idle          = true
@@ -106,7 +148,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
   }
-  depends_on = [google_project_service.apis, google_secret_manager_secret_iam_member.runtime_reads_key]
+  depends_on = [google_project_service.apis, google_secret_manager_secret_iam_member.runtime_reads_key, google_storage_bucket_iam_member.runtime_state]
 
   # CI rolls new image tags with `gcloud run deploy` (deploy.yml / cloudbuild.yaml); Terraform
   # owns everything else about the service and must not revert those rollouts.
@@ -125,6 +167,7 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
 
 output "service_url" { value = google_cloud_run_v2_service.app.uri }
 output "runtime_service_account" { value = google_service_account.runtime.email }
+output "state_bucket" { value = google_storage_bucket.state.name }
 
 # Optional: let Terraform manage the secret version when the key is supplied as a
 # sensitive variable (TF_VAR_openrouter_api_key). Leave it empty to add versions with
