@@ -190,18 +190,51 @@ def _split_sections(markdown: str, doc_title: str) -> list[tuple[str, str, str]]
     return [(a, b, "\n".join(c).strip()) for a, b, c in sections]
 
 
+def _pieces(paragraph: str) -> list[str]:
+    """A paragraph that fits is one piece. One that does not is cut on line boundaries, and a single
+    line that still does not fit is cut on word boundaries - so no piece exceeds the window and no
+    text is dropped (the embedder silently ignores everything past its context)."""
+    if len(paragraph) <= MAX_CHUNK_CHARS:
+        return [paragraph]
+    pieces: list[str] = []
+    cur = ""
+    units: list[str] = []
+    for line in paragraph.split("\n"):
+        if len(line) <= MAX_CHUNK_CHARS:
+            units.append(line)
+            continue
+        word_run = ""
+        for word in line.split(" "):
+            if word_run and len(word_run) + 1 + len(word) > MAX_CHUNK_CHARS:
+                units.append(word_run)
+                word_run = ""
+            word_run = f"{word_run} {word}" if word_run else word[:MAX_CHUNK_CHARS]
+        if word_run:
+            units.append(word_run)
+    for unit in units:
+        if cur and len(cur) + 1 + len(unit) > MAX_CHUNK_CHARS:
+            pieces.append(cur)
+            cur = ""
+        cur = f"{cur}\n{unit}" if cur else unit
+    if cur:
+        pieces.append(cur)
+    return pieces
+
+
 def _windows(body: str) -> list[str]:
     if len(body) <= MAX_CHUNK_CHARS:
         return [body]
-    paras = [p for p in re.split(r"\n\s*\n", body) if p.strip()]
+    paras = [piece for p in re.split(r"\n\s*\n", body) if p.strip() for piece in _pieces(p)]
     out: list[str] = []
     cur: list[str] = []
     size = 0
     for p in paras:
-        if cur and size + len(p) > MAX_CHUNK_CHARS:
+        if cur and size + len(p) + 2 * len(cur) > MAX_CHUNK_CHARS:
             out.append("\n\n".join(cur))
             cur = cur[-OVERLAP_PARAGRAPHS:]
             size = sum(len(x) for x in cur)
+            if size + len(p) + 2 * len(cur) > MAX_CHUNK_CHARS:     # the overlap would overflow the window
+                cur, size = [], 0
         cur.append(p)
         size += len(p)
     if cur:

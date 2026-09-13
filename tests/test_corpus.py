@@ -56,3 +56,19 @@ def test_classify_product_edge_cases():
     assert classify_product("**Applies to:** OrbitMesh Pro R5 Pro and N5 Pro.") == ("pro", True)
     assert classify_product("nothing about hardware") == ("all", False)
     assert classify_product("Use one R1 and up to five N1 nodes.") == ("home", False)
+
+
+def test_a_paragraph_longer_than_the_window_is_split_and_nothing_is_dropped():
+    """User notes often have no blank lines for pages at a time. A 6 KB paragraph used to become one
+    6 KB chunk, and the embedder only sees its first ~512 tokens - the rest was unsearchable."""
+    from orbitmesh import corpus
+
+    lines = [f"line {i:03d} " + "word " * 18 for i in range(60)]          # ~100 chars x 60, no blank line
+    one_giant_line = "token " * 900                                         # ~5.4 KB with no newline at all
+    body = "\n".join(lines) + "\n\nshort paragraph\n\n" + one_giant_line
+    windows = corpus._windows(body)
+    assert max(len(w) for w in windows) <= corpus.MAX_CHUNK_CHARS
+    joined = "\n".join(windows)
+    assert all(line.strip() in joined for line in lines)
+    assert "short paragraph" in joined
+    assert sum(w.count("token") for w in windows) >= 900                   # overlap may repeat, never lose

@@ -150,7 +150,7 @@
       nodes = [...keep];                                             // freeSlot() avoids everything placed so far
       j.connectors.forEach((c) => {
         const old = prev.find((n) => n.c && n.c.id === c.id);
-        if (old) { old.c = c; nodes.push(old); return; }
+        if (old) { old.c = c; old.kind = c.kind; nodes.push(old); return; }   // the server owns the kind
         const node = { uid: `c-${c.id}`, kind: c.kind, c, draft: null, x: 0, y: 0 };
         if (pos[c.id]) [node.x, node.y] = pos[c.id];
         else if (c.kind === "corpus") [node.x, node.y] = [HUB.x - 290 - NODE_W / 2, HUB.y - 45];
@@ -185,7 +185,7 @@
       const pills = n.c
         ? `<span class="npill">${n.c.documents.length} doc${n.c.documents.length === 1 ? "" : "s"}</span><span class="npill">${n.c.chunks} chunk${n.c.chunks === 1 ? "" : "s"}</span>${n.c.read_only ? `<span class="npill">read-only</span>` : ""}${st === "off" ? `<span class="npill warn">off</span>` : ""}`
         : `<span class="npill warn">draft</span>`;
-      el.innerHTML = `<div class="nhead"><span class="mono-chip" style="--k:${d.color}">${d.mono}</span><div class="nt"><div class="nname" title="${esc(n.c ? n.c.name : n.draft.name)}">${esc(n.c ? n.c.name : n.draft.name)}</div><div class="nkind">${esc(n.kind)}</div></div><span class="status ${st}" title="${esc(why)}"></span></div>
+      el.innerHTML = `<div class="nhead"><span class="mono-chip" style="--k:${d.color}">${d.mono}</span><div class="nt"><div class="nname" title="${esc(n.c ? n.c.name : n.draft.name)}">${esc(n.c ? n.c.name : n.draft.name)}</div><div class="nkind">${esc(n.kind)}</div></div><span class="status st-${st}" title="${esc(why)}"></span></div>
         <div class="nbody">${pills}</div>${n.c && n.c.last_error ? `<div class="nreason" title="${esc(n.c.last_error)}">${esc(n.c.last_error)}</div>` : ""}`;
       world.appendChild(el);
     });

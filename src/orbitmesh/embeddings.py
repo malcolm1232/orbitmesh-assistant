@@ -19,6 +19,12 @@ from typing import Protocol
 
 _WORD = re.compile(r"[a-z0-9]+")
 
+# ONNX attention memory grows with batch x sequence length, and the runtime keeps its arena at
+# the peak. Long chunks (a 45 KB notes file cut into ~2.5 KB pieces) at batch 32 added 568 MB and
+# killed the 1 GiB Cloud Run instance; batch 4 keeps the same file around +110 MB. Small corpora
+# barely notice the throughput difference on CPU.
+EMBED_BATCH_SIZE = 4
+
 
 class Embedder(Protocol):
     name: str
@@ -66,7 +72,7 @@ class FastEmbedEmbedder:
         self.dim = int(len(probe))
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return [_normalise([float(x) for x in vec]) for vec in self._model.embed(texts, batch_size=32)]
+        return [_normalise([float(x) for x in vec]) for vec in self._model.embed(texts, batch_size=EMBED_BATCH_SIZE)]
 
 
 def build_embedder(provider: str, model_name: str, cache_dir: str) -> Embedder:

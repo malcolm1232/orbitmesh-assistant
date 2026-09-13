@@ -68,10 +68,12 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:13px;letter-spacing:.04em;text-tra
 .node .nhead{display:flex;align-items:center;gap:10px;padding:11px 12px 8px 15px}
 .node .mono-chip{width:28px;height:28px;border-radius:7px;font-size:10px}
 .node .nt{min-width:0;flex:1}.node .nname{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.node .nkind{font:500 10.5px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
-.status{flex:none;width:9px;height:9px;border-radius:50%;background:#aab3c2}
-.status.indexed{background:var(--ok);box-shadow:0 0 0 3px rgba(31,138,76,.18)}
-.status.pending,.status.empty,.status.draft{background:var(--warn);box-shadow:0 0 0 3px rgba(183,121,31,.18)}
-.status.error{background:var(--bad);box-shadow:0 0 0 3px rgba(192,57,43,.18)}
+/* st-* prefix: bare .empty/.error/.draft are page-wide classes (the chat's .empty has 40px padding,
+   which once inflated this 9px dot into a large circle) */
+.status{flex:none;box-sizing:border-box;width:9px;height:9px;padding:0;border-radius:50%;background:#aab3c2}
+.status.st-indexed{background:var(--ok);box-shadow:0 0 0 3px rgba(31,138,76,.18)}
+.status.st-pending,.status.st-empty,.status.st-draft{background:var(--warn);box-shadow:0 0 0 3px rgba(183,121,31,.18)}
+.status.st-error{background:var(--bad);box-shadow:0 0 0 3px rgba(192,57,43,.18)}
 .node .nbody{display:flex;flex-wrap:wrap;gap:5px;padding:0 12px 11px 15px}
 .npill{font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;padding:4px 7px;border-radius:999px;border:1px solid var(--line);color:#33405a;background:#f7f8fb;white-space:nowrap}
 .npill.warn{color:var(--warn);border-color:#ecd3a8;background:#fdf7ec}.npill.bad{color:var(--bad);border-color:#efc4be;background:#fdf1ef}
