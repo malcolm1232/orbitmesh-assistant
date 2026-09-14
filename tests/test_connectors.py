@@ -50,6 +50,13 @@ def test_describe_markdown_reads_the_corpus_conventions():
     assert describe_markdown("no headers here", "fallback") == ("fallback", "", "")
 
 
+def test_describe_markdown_accepts_a_plain_version_line():
+    from orbitmesh.corpus import describe_markdown
+
+    assert describe_markdown("# Guest Wi-Fi\n\n**Version:** 1.0\n**Effective:** 2026-09-14\n", "x") == \
+        ("Guest Wi-Fi", "1.0", "2026-09-14")
+
+
 def test_upload_connector_feeds_the_shared_index(env):
     connectors, store, state = env
     sync_all(connectors, store, state)

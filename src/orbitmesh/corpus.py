@@ -44,7 +44,7 @@ OVERLAP_PARAGRAPHS = 1
 CORPUS_CONNECTOR_ID = "orbitmesh-corpus"
 
 _H1 = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
-_VERSION_LINE = re.compile(r"^\*\*(?:Document|Policy) version:\*\*\s*(\S+)", re.IGNORECASE | re.MULTILINE)
+_VERSION_LINE = re.compile(r"^\*\*(?:(?:Document|Policy) )?version:\*\*\s*(\S+)", re.IGNORECASE | re.MULTILINE)
 _DATE_LINE = re.compile(r"^\*\*(?:Published|Effective):\*\*\s*(\S+)", re.IGNORECASE | re.MULTILINE)
 
 
