@@ -1,0 +1,21 @@
+# Build context: the Dockerfile copies pyproject.toml, src, corpus, scripts, eval and tests only.
+# Everything local-only stays out of the context (secrets, virtualenv, indexes, caches, infra state).
+.git
+.github
+.env
+.env.*
+!.env.example
+.venv
+venv
+data
+qdrant_storage
+eval_results
+private_evals
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.pytest_cache
+.DS_Store
+infra/terraform/.terraform
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars
