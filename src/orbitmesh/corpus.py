@@ -141,8 +141,18 @@ def classify_product(text: str) -> tuple[str, bool]:
             return "pro", True
         if _HOME_MODELS.search(line):
             return "home", True
-    pro = bool(_PRO_MODELS.search(text))
-    home = bool(_HOME_MODELS.search(text))
+    # Without an "Applies to" line, a product line scopes a document when more than one paragraph is
+    # about it, or - for a short note - at least half of its paragraphs are. A single passing mention in
+    # a longer document (the policy's "Customers must not open an R1, N1, or power adapter") is an
+    # example, not a scope; tagging on it hid the warranty/safety policy from Pro customers.
+    paragraphs = [p for p in re.split(r"\n\s*\n", text) if p.strip()] or [text]
+
+    def scoped(pattern: re.Pattern) -> bool:
+        n = sum(1 for p in paragraphs if pattern.search(p))
+        return n >= 2 or (n >= 1 and n * 2 >= len(paragraphs))
+
+    pro = scoped(_PRO_MODELS)
+    home = scoped(_HOME_MODELS)
     if pro and not home:
         return "pro", False
     if home and not pro:

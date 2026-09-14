@@ -143,3 +143,15 @@ def test_a_content_filtered_turn_is_retried_without_the_customer_wording(scripte
     assert "how do I factory reset it" not in _user_content(llm.prompts[1])
     assert "E17" in _user_content(llm.prompts[1])
     assert any("content filter" in note for note in r.guardrails["output"])
+
+
+
+def test_a_pro_safety_report_is_answered_from_the_policy_safety_section(scripted):
+    reply = {"response": "Disconnect power now and stop using the unit, then contact OrbitMesh Support.",
+             "action": "escalate", "citations": [1]}
+    agent, llm = scripted([reply])
+    r = agent.handle("pro-safety", "My N5 Pro gateway is very hot and smells burnt")
+    assert r.action == "escalate"
+    assert {"source_id": "warranty-safety-policy", "locator": "Safety"} in r.citations
+    prompt = "\n".join(m["content"] for m in llm.prompts[0] if m["role"] == "user")
+    assert 'source_id="warranty-safety-policy" locator="Safety"' in prompt and "product=all" in prompt

@@ -268,10 +268,10 @@ class Agent:
         return self._fallback(state, hits, reason=last_violation)
 
     def _pin(self, hits: list[Hit], source_id: str, locator_contains: str) -> list[Hit]:
-        if any(h.chunk.source_id == source_id and locator_contains.lower() in h.chunk.locator.lower() for h in hits):
-            return hits
         chunk = next(iter(self.retriever.find(source_id, locator_contains)), None)
         if chunk is None:
+            return hits
+        if any(h.chunk.chunk_id == chunk.chunk_id for h in hits):     # the exact section, not a title mentioning it
             return hits
         pinned = Hit(chunk=chunk, score=1.0, vector_rank=None, lexical_rank=None)
         return [pinned] + hits[: max(0, self.retriever.top_k - 1)]

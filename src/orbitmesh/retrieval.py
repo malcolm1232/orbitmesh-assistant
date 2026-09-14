@@ -89,8 +89,11 @@ class Retriever:
     def find(self, source_id: str, locator_contains: str = "") -> list[Chunk]:
         """Deterministic lookup by document/section - used by guardrail fallbacks so even a
         canned safety message cites the corpus rather than restating it from code."""
-        return [c for c in self._chunks
-                if c.source_id == source_id and locator_contains.lower() in c.locator.lower()]
+        want = locator_contains.lower()
+        matches = [c for c in self._chunks if c.source_id == source_id and want in c.locator.lower()]
+        # An exact section name first: "Safety" must not resolve to the document-title preamble
+        # "OrbitMesh Warranty, Safety, and Escalation Policy" just because it comes first.
+        return sorted(matches, key=lambda c: (c.locator.lower() != want, not c.locator.lower().startswith(want)))
 
     def retrieve(self, query: str, *, product_line: str | None = None, top_k: int | None = None) -> list[Hit]:
         if not self._chunks:

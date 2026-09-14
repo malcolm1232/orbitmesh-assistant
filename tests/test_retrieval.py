@@ -58,3 +58,13 @@ def test_weak_evidence_is_detected_for_off_topic_questions(retriever):
     q = "N1 flashing amber on wireless backhaul"
     assert not evidence_is_weak(q, retriever.retrieve(q, product_line="home"))
     assert not evidence_is_weak("E31", retriever.retrieve("E31", product_line="home"))
+
+
+def test_a_pro_customer_asking_about_warranty_gets_the_warranty_policy(retriever):
+    hits = retriever.retrieve("Will the warranty definitely cover a replacement if I send it in?", product_line="pro")
+    assert ("warranty-safety-policy", "Limited warranty") in [(h.chunk.source_id, h.chunk.locator) for h in hits[:3]]
+
+
+def test_find_prefers_the_exact_section_over_a_title_that_contains_the_word(retriever):
+    found = retriever.find("warranty-safety-policy", "Safety")
+    assert found and found[0].locator == "Safety"        # not "OrbitMesh Warranty, Safety, and Escalation Policy"

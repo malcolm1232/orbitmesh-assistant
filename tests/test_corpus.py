@@ -72,3 +72,20 @@ def test_a_paragraph_longer_than_the_window_is_split_and_nothing_is_dropped():
     assert all(line.strip() in joined for line in lines)
     assert "short paragraph" in joined
     assert sum(w.count("token") for w in windows) >= 900                   # overlap may repeat, never lose
+
+
+def test_a_passing_mention_does_not_scope_a_document_to_one_product_line():
+    """The warranty/safety/escalation policy names 'R1, N1' once, in its no-opening rule, and was tagged
+    home - so a Pro customer's safety or warranty question ranked it below the Pro manuals and the
+    model saw it labelled product=home. Scope needs an 'Applies to' line or more than one paragraph."""
+    from collections import defaultdict
+
+    lines = defaultdict(set)
+    for doc in load_manifest(CORPUS):
+        for c in chunk_document(doc):
+            lines[c.source_id].add((c.product_line, c.product_explicit))
+    assert lines["warranty-safety-policy"] == {("all", False)}
+    assert lines["troubleshooting-guide"] == {("home", True)}
+    assert lines["pro-led-reference"] == {("pro", True)}
+    assert lines["firmware-archive"] == {("home", False)}        # two paragraphs about R1/N1 firmware: still home
+    assert lines["network-compatibility"] == {("home", False)}
