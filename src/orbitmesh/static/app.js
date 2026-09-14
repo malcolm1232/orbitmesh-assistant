@@ -395,6 +395,10 @@
     if (e.key === "Escape" && selected && location.hash === "#connectors" && !e.target.closest("input")) { selected = null; render(); }
   });
   window.addEventListener("resize", () => { if (location.hash === "#connectors") drawEdges(); });
+  // The canvas pans with a transform, never by scrolling. overflow:clip keeps anything from scrolling it (a
+  // screen reader or find-in-page bringing an off-canvas node into view shifted every node and the zoom
+  // bar by that offset); where clip is unsupported, undo the scroll instead.
+  canvasEl.addEventListener("scroll", () => { if (canvasEl.scrollLeft || canvasEl.scrollTop) canvasEl.scrollTo(0, 0); });
   kindTiles();
 
   // ---------------------------------------------------------------- dashboard

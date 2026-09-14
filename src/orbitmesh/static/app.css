@@ -46,7 +46,7 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:13px;letter-spacing:.04em;text-tra
 .kind-tile .tn{display:flex;flex-direction:column;line-height:1.25;min-width:0}.kind-tile .tn b{font-size:13px;font-weight:600}.kind-tile .tn span{font-size:11px;color:var(--muted)}
 .kind-tile .plus{margin-left:auto;color:#8a94a6;font-size:18px;line-height:1}.kind-tile:hover .plus{color:var(--k)}
 .rail-note{margin-top:auto;padding-top:16px;color:var(--muted);font-size:12px;line-height:1.5}
-.cv-canvas{position:relative;overflow:hidden;background-color:#eef1f6;background-image:radial-gradient(#cfd6e2 1px,transparent 1px);background-size:22px 22px;cursor:grab;touch-action:none;user-select:none}
+.cv-canvas{position:relative;overflow:hidden;overflow:clip;background-color:#eef1f6;background-image:radial-gradient(#cfd6e2 1px,transparent 1px);background-size:22px 22px;cursor:grab;touch-action:none;user-select:none}
 .cv-canvas.panning{cursor:grabbing}
 .cv-world{position:absolute;left:0;top:0;width:2000px;height:1300px;transform-origin:0 0}
 .cv-world.animating{transition:transform .25s cubic-bezier(.4,0,.2,1)}
