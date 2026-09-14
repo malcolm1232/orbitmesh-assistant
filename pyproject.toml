@@ -35,3 +35,7 @@ orbitmesh = ["static/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # Raised inside starlette.testclient itself (it still references anyio's old alias); not our code.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
+]

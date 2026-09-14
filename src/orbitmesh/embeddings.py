@@ -64,8 +64,14 @@ class HashingEmbedder:
 
 class FastEmbedEmbedder:
     def __init__(self, model_name: str, cache_dir: str) -> None:
+        import onnxruntime
         from fastembed import TextEmbedding  # lazy: keeps the hash mode import-free
 
+        # onnxruntime's built-in telemetry dispatches an event while the interpreter shuts down; on
+        # macOS that once aborted a finished `chat --jsonl` process (SIGABRT in
+        # Events::DebugEventSource::DispatchEvent -> recursive_mutex::lock) and raised the
+        # "Python quit unexpectedly" dialog during scripts/check_contract.py. No telemetry, no dispatch.
+        onnxruntime.disable_telemetry_events()
         self._model = TextEmbedding(model_name, cache_dir=cache_dir)
         self.name = f"fastembed:{model_name}"
         probe = list(self._model.embed(["dimension probe"]))[0]

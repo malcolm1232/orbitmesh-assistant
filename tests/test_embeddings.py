@@ -20,3 +20,23 @@ def test_fastembed_embeds_in_small_batches_so_long_chunks_fit_in_memory():
     out = e.embed(["x" * 3000] * 10)
     assert len(out) == 10
     assert e._model.batch_sizes and max(e._model.batch_sizes) <= embeddings.EMBED_BATCH_SIZE <= 4
+
+
+def test_onnxruntime_telemetry_is_disabled_before_the_model_loads(monkeypatch):
+    import sys
+    import types
+
+    calls = []
+    fake_ort = types.SimpleNamespace(disable_telemetry_events=lambda: calls.append("disabled"))
+
+    class _FakeTextEmbedding:
+        def __init__(self, *a, **k):
+            calls.append("model")
+
+        def embed(self, texts, batch_size=1):
+            return [[1.0, 0.0] for _ in texts]
+
+    monkeypatch.setitem(sys.modules, "onnxruntime", fake_ort)
+    monkeypatch.setitem(sys.modules, "fastembed", types.SimpleNamespace(TextEmbedding=_FakeTextEmbedding))
+    embeddings.FastEmbedEmbedder("any-model", "/tmp/unused")
+    assert calls[:2] == ["disabled", "model"]
