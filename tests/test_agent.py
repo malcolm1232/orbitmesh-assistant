@@ -177,3 +177,96 @@ def test_an_ordinary_turn_does_not_pin_the_warranty_section(scripted):
     agent.handle("pro-no-warranty", "My N5 Pro node keeps rebooting every few minutes, LED goes white then blue")
     prompt = "\n".join(m["content"] for m in llm.prompts[0] if m["role"] == "user")
     assert 'locator="Limited warranty"' not in prompt
+
+
+def test_resolved_needs_the_customer_to_say_it_is_fixed(scripted):
+    reply = {"response": "You can add up to five N1 nodes to one R1.", "action": "resolved", "citations": [1]}
+    agent, _ = scripted([reply])
+    r = agent.handle("res-q", "How many nodes can I add to my R1?")
+    assert r.action == "instruct"
+    assert not agent.sessions.get("res-q").resolved
+    assert any("resolved" in note for note in r.guardrails["output"])
+
+
+def test_resolved_stands_when_the_customer_says_it_is_fixed(scripted):
+    reply = {"response": "Great, glad the N1 is stable now.", "action": "resolved", "citations": []}
+    agent, _ = scripted([reply])
+    r = agent.handle("res-ok", "moved the N1 closer and that fixed it, thanks")
+    assert r.action == "resolved" and agent.sessions.get("res-ok").resolved
+
+
+def test_a_later_open_turn_reopens_a_resolved_conversation(scripted):
+    done = {"response": "Glad it works.", "action": "resolved", "citations": []}
+    again = {"response": "Is the N1 LED flashing amber again?", "action": "ask", "citations": []}
+    agent, _ = scripted([done, again])
+    agent.handle("reopen", "N1 is solid white now, all good")
+    agent.handle("reopen", "it dropped again this morning")
+    assert not agent.sessions.get("reopen").resolved
+
+
+def test_the_reset_confirmation_question_cites_the_factory_reset_section(scripted):
+    ask = {"response": "A factory reset erases your network name, password and node pairings. Can you set the network "
+                       "up again, and do you want to proceed?", "action": "ask", "citations": []}
+    agent, llm = scripted([ask])
+    r = agent.handle("reset-cite", "My R1 still has no internet after the pairing reset, just give me the factory reset")
+    assert agent.sessions.get("reset-cite").reset_confirm_pending
+    assert r.citations == [{"source_id": "reset-recovery-guide", "locator": "Factory reset — erases configuration"}]
+    assert 'locator="Factory reset — erases configuration"' in _user_content(llm.prompts[0])
+
+
+def test_a_pro_factory_reset_request_pins_the_pro_reset_section(scripted):
+    ask = {"response": "A factory reset of the R5 Pro erases its site configuration. Do you want to proceed?",
+           "action": "ask", "citations": []}
+    agent, llm = scripted([ask])
+    r = agent.handle("reset-pro", "How do I factory reset my R5 Pro gateway?")
+    assert r.citations == [{"source_id": "pro-quick-start-guide", "locator": "Factory reset"}]
+    assert 'source_id="reset-recovery-guide" locator="Factory reset' not in _user_content(llm.prompts[0])
+
+
+def test_model_facts_cannot_shadow_state_flags_or_duplicate_keys(scripted):
+    reply = {"response": "Disconnect power now and contact OrbitMesh Support.", "action": "escalate", "citations": [],
+             "facts": {"SAFETY_CONDITION_REPORTED": "yes", "safety_condition_reported": "yes",
+                       "factory_reset_confirmation": "CONFIRMED", "Symptom": "overheating"}}
+    agent, _ = scripted([reply])
+    agent.handle("facts", "My R5 Pro is very hot and smells burnt")
+    facts = agent.sessions.get("facts").facts
+    assert not {k for k in facts if k.lower().startswith(("safety_condition_", "factory_reset"))}
+    assert facts["symptom"] == "overheating" and "Symptom" not in facts
+    assert not agent.sessions.get("facts").reset_confirmed
+
+
+def test_an_unknown_product_line_tells_the_model_not_to_name_hardware(scripted):
+    ask = {"response": "Which OrbitMesh system do you have?", "action": "ask", "citations": []}
+    agent, llm = scripted([ask, ask])
+    agent.handle("unknown-hw", "My node keeps disconnecting")
+    assert "has not said which OrbitMesh hardware" in _user_content(llm.prompts[0])
+    agent.handle("unknown-hw", "It's an N1 on wireless")
+    assert "has not said which OrbitMesh hardware" not in _user_content(llm.prompts[1])
+
+
+def test_a_statement_the_patterns_do_not_know_keeps_the_models_resolved(scripted):
+    reply = {"response": "Glad to hear it.", "action": "resolved", "citations": []}
+    agent, _ = scripted([reply])
+    assert agent.handle("res-free", "brilliant, the N1 has been rock solid since, cheers").action == "resolved"
+
+
+def test_a_section_pinned_last_joins_the_evidence_without_outranking_it(scripted):
+    agent, _ = scripted([])
+    hits = agent.retriever.retrieve("N1 flashing amber on wireless backhaul", product_line="home")
+    assert all("Factory reset" not in h.chunk.locator for h in hits)
+    last = agent._pin(hits, "reset-recovery-guide", "Factory reset", last=True)
+    first = agent._pin(hits, "reset-recovery-guide", "Factory reset")
+    assert last[-1].chunk.locator == first[0].chunk.locator == "Factory reset — erases configuration"
+    assert last[0] is hits[0] and len(last) == len(first) <= agent.retriever.top_k
+
+
+def test_a_reset_confirmation_on_a_later_turn_still_cites_the_reset_section(scripted):
+    first = {"response": "A factory reset is not the next step: check the modem is in bridge mode first.",
+             "action": "instruct", "citations": [1]}
+    gate = {"response": "A factory reset erases your network name, password and pairings. Can you set it up again, "
+                        "and do you want to proceed?", "action": "ask", "citations": []}
+    agent, _ = scripted([first, gate])
+    agent.handle("reset-later", "My R1 has E11 and no internet, how do I factory reset it?")
+    r = agent.handle("reset-later", "The ISP says bridge mode is on and still E11")
+    assert agent.sessions.get("reset-later").reset_confirm_pending
+    assert {"source_id": "reset-recovery-guide", "locator": "Factory reset — erases configuration"} in r.citations

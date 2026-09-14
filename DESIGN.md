@@ -51,11 +51,11 @@ Final run (`openai/gpt-4.1-mini`, local bge-small, `eval/RESULTS.md`):
 |---|---|
 | cases / checks | **38/38**, 141/141 |
 | retrieval (25 turns) | Recall@8 = 1.00, MRR = 1.00 |
-| judge (n=47) | grounded 4.74, helpful 4.43, safe 5.00 |
+| judge (n=47) | grounded 4.68, helpful 4.45, safe 5.00 |
 | cost | ~$0.0007 per LLM call, ~$0.05 per full eval run; $0.16 spent over the whole project including development |
 
 What the numbers say, honestly: retrieval on this corpus is effectively solved by section chunking plus hybrid ranking - the interesting misses were never "wrong document" but "right document, wrong product line" or "right document, superseded version", which is why the eval has explicit `retrieved_none` and `cite_none` checks.
-The judge's lowest axis is *helpful* (4.43), and reading the notes it is mostly "correct but could have asked the more specific question" - conversation design, not grounding.
+The judge's lowest axis is *helpful* (4.45), and reading the notes it is mostly "correct but could have asked the more specific question" - conversation design, not grounding.
 The first live run scored 31/37; the six failures are the useful part and are listed in `eval/RESULTS.md`.
 The no-credentials CI mode scores 14/14 on the model-independent subset with the real embedder.
 

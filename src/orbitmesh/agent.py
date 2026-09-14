@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass, field
 
 from . import guardrails
-from .conversation import SessionState, SessionStore
+from .conversation import SessionState, SessionStore, is_question
 from .llm import ACTIONS, ContentFiltered, Draft, LLMError
 from .observability import (ERRORS, GUARDRAIL_INPUT, GUARDRAIL_OUTPUT, RETRIEVAL_EMPTY, RETRIEVAL_HITS,
                             TURN_LATENCY, TURNS, SESSIONS_ACTIVE, log_event)
@@ -133,7 +133,12 @@ class Agent:
         if state.reset_confirmed:
             # The confirmation turn is usually just "yes": make sure the documented reset
             # procedure is in front of the model rather than whatever "yes" retrieves.
-            hits = self._pin(hits, "reset-recovery-guide", "Factory reset")
+            hits = self._pin(hits, *self._reset_section(product))
+        elif any(guardrails.mentions_factory_reset(t["content"]) for t in state.history[-6:]):
+            # A reset is under discussion. Discussing one is not a reason to do one: the section goes LAST, so a
+            # confirmation question (this turn or a later one) can cite what a reset erases without outranking
+            # the documented path that has to come first.
+            hits = self._pin(hits, *self._reset_section(product), last=True)
         if _WARRANTY.search(text):
             # Session context ("N5 Pro", "rebooting") pulls product manuals to the top of the query,
             # which can push the warranty section out of the evidence entirely.
@@ -152,6 +157,12 @@ class Agent:
                          "remind them briefly that support never needs it and do not ask for it")
         if reset_note:
             notes.append(reset_note)
+        if not state.reset_confirmed and not state.reset_confirm_pending and guardrails.mentions_factory_reset(text):
+            notes.append("the customer asked about a factory reset. The documentation makes it a last resort AFTER the "
+                         "documented path for their symptom has failed, and rules it out for upstream ISP/modem, DHCP, VLAN, "
+                         "placement or firmware problems. If a documented step for their symptom is not yet in 'Steps the customer "
+                         "reports trying', give the next such step (never one they already tried) and say a reset is not the "
+                         "next step; only when that path is exhausted, start the reset confirmation")
         if state.reset_confirmed:
             notes.append("the customer has JUST explicitly confirmed the factory reset after being told what it erases: "
                          "give the documented reset action now (action instruct); do not ask for confirmation again")
@@ -164,6 +175,9 @@ class Agent:
             notes.append("the evidence barely overlaps the question: if it does not actually address the customer's "
                          "topic, say plainly that the OrbitMesh documentation does not cover it and point them to "
                          "support - do not ask clarifying questions to stall and do not improvise")
+        if not weak and state.facts.get("product_line") not in ("home", "pro"):
+            notes.append("the customer has not said which OrbitMesh hardware they have: do not name or assume a model "
+                         "(R1, N1, R5 Pro, N5 Pro) they have not mentioned")
         mixed = not weak and self._product_ambiguous(state, hits)
         if mixed:
             notes.append("the product line is UNKNOWN and the evidence spans both the home (R1/N1) and Pro (R5 Pro/N5 Pro) "
@@ -179,19 +193,27 @@ class Agent:
         if state.safety_condition and action != "escalate":
             action = "escalate"
             gr["output"].append("action forced to escalate: safety condition")
+        if action == "resolved" and not found.get("customer_reports_resolved") and is_question(text):
+            # Answering a question does not fix anything: only the customer can say the problem is gone.
+            action = "instruct" if citations else "ask"
+            gr["output"].append(f"resolved on a customer question -> {action}")
         if action == "instruct" and not citations:
             action = "ask"
             gr["output"].append("instruct without a valid citation downgraded to ask")
         if guardrails.is_reset_confirmation_request(draft.response) and not state.reset_confirmed:
             state.reset_confirm_pending = True
             action = "ask"
+            # What a reset erases is a documented claim: cite the reset section it was pinned from.
+            section = self._reset_chunk(product)
+            reset = next((h for h in hits if section and h.chunk.chunk_id == section.chunk_id), None)
+            if reset and reset.citation not in citations:
+                citations = citations + [reset.citation]
         if state.reset_confirmed and guardrails.gives_factory_reset_step(draft.response):
             state.reset_confirmed = False   # one-shot: a later reset needs a fresh confirmation
             state.steps_offered.append("factory reset")
         if action == "instruct":
             state.steps_offered.append(draft.step or draft.response[:120])
-        if action == "resolved":
-            state.resolved = True
+        state.resolved = action == "resolved"      # a later open turn reopens the conversation
         if action == "escalate":
             state.escalated = True
         state.merge_model_facts(draft.facts, protected=found)
@@ -272,14 +294,22 @@ class Agent:
         GUARDRAIL_OUTPUT.labels(outcome="fallback").inc()
         return self._fallback(state, hits, reason=last_violation)
 
-    def _pin(self, hits: list[Hit], source_id: str, locator_contains: str) -> list[Hit]:
+    @staticmethod
+    def _reset_section(product: str | None) -> tuple[str, str]:
+        return ("pro-quick-start-guide", "Factory reset") if product == "pro" else ("reset-recovery-guide", "Factory reset")
+
+    def _reset_chunk(self, product: str | None):
+        return next(iter(self.retriever.find(*self._reset_section(product))), None)
+
+    def _pin(self, hits: list[Hit], source_id: str, locator_contains: str, *, last: bool = False) -> list[Hit]:
         chunk = next(iter(self.retriever.find(source_id, locator_contains)), None)
         if chunk is None:
             return hits
         if any(h.chunk.chunk_id == chunk.chunk_id for h in hits):     # the exact section, not a title mentioning it
             return hits
         pinned = Hit(chunk=chunk, score=1.0, vector_rank=None, lexical_rank=None)
-        return [pinned] + hits[: max(0, self.retriever.top_k - 1)]
+        kept = hits[: max(0, self.retriever.top_k - 1)]
+        return kept + [pinned] if last else [pinned] + kept
 
     def _validate_citations(self, draft: Draft, hits: list[Hit]) -> list[dict]:
         """Citations may only point at evidence that was actually shown. Accepts evidence

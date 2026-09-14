@@ -84,5 +84,10 @@ def test_factory_reset_step_requires_confirmation():
 def test_reset_confirmation_request_is_recognised():
     assert g.is_reset_confirmation_request("A factory reset erases your network name and password. Do you want to proceed?")
     assert not g.is_reset_confirmation_request("Move the node closer and wait two minutes.")
+    # "confirm" about something else in a reply that merely names the reset is not the gate question.
+    assert not g.is_reset_confirmation_request("Before considering a factory reset, please confirm the modem is connected "
+                                               "to the R1's blue WAN port, then restart the modem.")
+    assert g.is_reset_confirmation_request("Before a factory reset: it will erase your network name, password and node "
+                                           "pairings. Can you set the network up again, and shall I give you the step?")
     assert g.gives_factory_reset_step("Hold reset for at least 15 seconds until the LED flashes red.")
     assert not g.gives_factory_reset_step("Hold the reset button for 5-7 seconds until the LED pulses blue.")

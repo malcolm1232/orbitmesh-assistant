@@ -121,6 +121,7 @@ h1{font-size:22px;margin:0 0 4px}h3{font-size:13px;letter-spacing:.04em;text-tra
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}.card .k{font-size:12px;color:var(--muted)}.card .v{font-size:24px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.card .s{font-size:12px;color:var(--muted)}
 .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}.chart-card{padding:12px 16px 8px}.chart-card canvas{width:100%;height:auto}
 .table-wrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 12px;border-top:1px solid var(--line)}th{border-top:0;color:var(--muted);font-weight:500}
+#sessions-table td:first-child,#sessions-table td:nth-child(3),#sessions-table td:last-child{white-space:nowrap}
 /* toast */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#141a26;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;max-width:80vw}.toast.bad{background:var(--bad)}
 @media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr)}.sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap}.sidebar-foot{margin:0;width:100%}.ask-grid{grid-template-columns:1fr}.content{padding:18px 16px}}

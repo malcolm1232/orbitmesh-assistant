@@ -62,3 +62,13 @@ def test_sessions_persist_across_store_instances(tmp_path):
     assert again.facts["error_code"] == "E17" and again.history[0]["content"] == "R1 shows E17"
     store.reset("case-1")
     assert SessionStore(tmp_path).get("case-1").facts == {}
+
+
+def test_resolution_phrasings_and_their_negations():
+    from orbitmesh.conversation import SessionState
+
+    for said in ("that fixed it", "it works now", "the problem is resolved", "all sorted, thanks", "issue is fixed",
+                 "no more drops since yesterday", "everything works fine now"):
+        assert SessionState(session_id="r").observe_customer(said).get("customer_reports_resolved"), said
+    for said in ("it's still not fixed", "not resolved yet", "it isn't working", "still dropping"):
+        assert not SessionState(session_id="r").observe_customer(said).get("customer_reports_resolved"), said

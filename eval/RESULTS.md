@@ -18,7 +18,7 @@ Runner: `make eval` (`python -m eval.run_eval [--judge]`). Cases: `eval/cases.js
 | **total** | **38/38 cases, 141/141 checks** |
 
 - Retrieval over the 25 turns with a declared target: **Recall@8 = 1.00, MRR = 1.00**.
-- LLM judge (`openai/gpt-4.1-mini`, 1-5, n=47 turns): **grounded 4.74, helpful 4.43, safe 5.00** (re-run after adding `mem-04`; the previous run, n=45, scored 4.78 / 4.42 / 4.98). Lowest-scoring axis is helpfulness; the judge's notes are mostly "correct, could have asked the more targeted question".
+- LLM judge (`openai/gpt-4.1-mini`, 1-5, n=47 turns): **grounded 4.68, helpful 4.45, safe 5.00** (re-run after the live end-to-end fixes below; the two runs before scored 4.74 / 4.43 / 5.00 and, at n=45, 4.78 / 4.42 / 4.98). Lowest-scoring axis is helpfulness; the judge's notes are mostly "correct, could have asked the more targeted question".
 - Wall time under 20 s with the LLM cache warm, about 140 s uncached (250 s with the judge); cost about $0.05 per uncached run.
 - No-credentials mode (`LLM_PROVIDER=mock`, real local embedder, model-independent checks only): 14/14 cases, Recall@8 1.00, MRR 1.00. With the hashing embedder (unit-test mode): 12/14 - the two misses are `retrieved_top_any` ranking, expected for a bag-of-hashed-words embedder.
 
@@ -34,6 +34,14 @@ Runner: `make eval` (`python -m eval.run_eval [--judge]`). Cases: `eval/cases.js
 ## Found after the final run
 
 7. **Uncited warranty answer mid-conversation.** A Pro customer who first described a rebooting N5 Pro and then asked "will the warranty definitely cover a replacement?" was told the documentation does not specify warranty coverage, with no citation. The question alone retrieves `warranty-safety-policy > Limited warranty` first, but the retrieval query appends the session context ("N5 Pro", "rebooting"), so Pro manuals filled the evidence. Fix: a message about warranty, coverage, an RMA or a replacement pins the Limited warranty section, the same way a safety report pins the Safety section (`agent._WARRANTY`). Case `mem-04` (0/1, 3/7 checks on the previous agent), test `test_a_warranty_question_mid_conversation_is_answered_from_the_warranty_section`.
+
+Found by driving the deployed site through the browser (Ask, Connectors, Dashboard) after that fix:
+
+8. **Reset confirmation gate was too loose.** "Before considering a factory reset, please **confirm** the modem is connected..." counted as the reset confirmation question, so the customer's next "yes" would have unlocked the reset step. The gate question now has to say what a reset erases, as the guide requires (`guardrails.is_reset_confirmation_request`).
+9. **Asked for a factory reset, got the confirmation gate straight away** for a no-internet problem whose documented path (bridge mode, DHCP, VLAN) had not been tried and which the guide rules out for a reset. A guardrail note now says a reset is the last resort after the documented path; the reset section joins the evidence last (not first) while a reset is under discussion, so the gate question - on whichever turn it comes - still cites what a reset erases.
+10. **"Resolved" on a question.** "How many nodes can I add to my R1?" was answered with action `resolved`. A customer question that does not report a fix cannot resolve the conversation, and a later open turn reopens a resolved one; the resolution phrases were widened ("it works now", "all sorted") and negations ("still not fixed") excluded.
+11. **Assumed hardware.** "My node keeps disconnecting" was answered "Is your N1 node...". While the product line is unknown and the evidence is on topic, the model is told not to name a model the customer has not mentioned.
+12. **Model echoed state flags as facts.** The session summary's `SAFETY_CONDITION_REPORTED=yes` came back as a "new fact" and showed twice in the UI. Model fact keys are normalised and may not set flags the code owns (safety, reset gate, resolution).
 
 ## Reproducing
 

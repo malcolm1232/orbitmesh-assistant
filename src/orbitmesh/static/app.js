@@ -431,7 +431,11 @@
       $("#dash-cards").innerHTML = cards.map(([k, v, sub]) => `<div class="card"><div class="k">${esc(k)}</div><div class="v" title="${esc(v)}">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join("");
       const a = s.turns.by_action; bars($("#chart-actions"), Object.keys(a), Object.values(a), ["#2457c5", "#1f8a4c", "#0f8b8d", "#c0392b"]);
       const lb = lat.buckets.filter((b) => b.le < 1e300); bars($("#chart-latency"), lb.map((b) => `≤${b.le}s`), lb.map((b) => b.count), ["#7c4dff"]);
-      const g = { ...Object.fromEntries(Object.entries(s.guardrails.input).map(([k, v]) => ["in:" + k, v])), ...Object.fromEntries(Object.entries(s.guardrails.output).map(([k, v]) => ["out:" + k, v])) };
+      // Chart labels are cut at 14 characters: name each guardrail signal in a few words instead of its metric label.
+      const guardName = { secret_password: "password", secret_api_key: "API key", secret_serial: "serial no.", injection: "injection",
+                          unsafe_request: "unsafe ask", ok: "output ok", regenerated_ok: "rewritten", fallback: "fallback" };
+      const named = (o) => Object.entries(o).map(([k, v]) => [guardName[k] || k.replace(/_/g, " "), v]);
+      const g = Object.fromEntries([...named(s.guardrails.input), ...named(s.guardrails.output)]);
       bars($("#chart-guard"), Object.keys(g), Object.values(g), palette);
       const cn = Object.values(s.connectors); bars($("#chart-connectors"), cn.map((c) => c.name), cn.map((c) => c.chunks), palette);
       $("#sessions-table tbody").innerHTML = ss.sessions.length ? ss.sessions.map((x) => `<tr><td><code>${esc(x.session_id)}</code></td><td>${x.turns}</td><td><span class="chip ${esc(x.last_action)}">${esc(x.last_action || "-")}</span></td><td>${x.resolved ? "resolved" : x.escalated ? "escalated" : "open"}</td><td class="small">${esc(Object.entries(x.facts).map(([k, v]) => `${k}=${v}`).join(", "))}</td><td class="small">${fmtTime(x.updated_at)}</td></tr>`).join("") : `<tr><td colspan="6" class="muted">no conversations yet</td></tr>`;

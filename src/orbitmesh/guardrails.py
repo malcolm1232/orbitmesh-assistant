@@ -121,6 +121,7 @@ _FACTORY_RESET_STEP = re.compile(
     r"|\bfactory[- ]reset\b[^.?!\n]{0,80}?\b(now|hold|press)\b|\b(perform|do|start|carry out|go ahead with) (?:the |a )?factory[- ]reset\b")
 _FACTORY_RESET_MENTION = re.compile(r"(?i)\bfactory[- ]reset\b")
 _RESET_CONFIRM_ASK = re.compile(r"(?i)\b(confirm|proceed|go ahead|are you (?:sure|happy)|do you want|would you like|shall i|ready to)\b")
+_RESET_ERASES = re.compile(r"(?i)\b(eras\w*|wip\w*|lose|lost|delete\w*)\b")
 
 
 @dataclass
@@ -151,8 +152,10 @@ def screen_output(text: str, *, action: str, reset_confirmed: bool) -> OutputVer
 
 
 def is_reset_confirmation_request(text: str) -> bool:
-    """Does the draft ask the customer to confirm a factory reset (the pre-reset gate)?"""
-    return bool(_FACTORY_RESET_MENTION.search(text) and _RESET_CONFIRM_ASK.search(text))
+    """Does the draft ask the customer to confirm a factory reset (the pre-reset gate)? The gate question states
+    what a reset erases; "before a factory reset, confirm the modem is connected" asks about something else, and
+    treating it as the gate would let the customer's next "yes" unlock the reset."""
+    return bool(_FACTORY_RESET_MENTION.search(text) and _RESET_CONFIRM_ASK.search(text) and _RESET_ERASES.search(text))
 
 
 def mentions_factory_reset(text: str) -> bool:

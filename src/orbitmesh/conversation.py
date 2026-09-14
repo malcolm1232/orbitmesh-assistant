@@ -40,9 +40,22 @@ _YES = re.compile(r"^\s*(yes|yep|yeah|ok(?:ay)?|sure|go ahead|proceed|confirm(?:
 _NO = re.compile(r"^\s*(no|nope|not yet|don'?t|cancel|stop|wait|hold on|i'?d rather not|never ?mind|actually)\b", re.IGNORECASE)
 _HEDGE = re.compile(r"\b(but|not|don'?t|wait|cancel|unless|before that|first|hold on|what (?:will|would|about)|\?)", re.IGNORECASE)
 _RESOLVED = re.compile(r"\b(that (?:fixed|solved|worked)|it'?s (?:working|fixed|back|online|solid white)( now)?|"
-                       r"working now|fixed now|all good|problem solved|solved it|that did it|back online)\b", re.IGNORECASE)
+                       r"working now|fixed now|all good|problem solved|solved it|that did it|back online|"
+                       r"works (?:fine |perfectly |great |again )?now|it works (?:fine|perfectly|great|again)|"
+                       r"(?:is|are|'s) (?:now )?(?:fixed|resolved|sorted)|all sorted|sorted now|"
+                       r"no more (?:drops|disconnects|disconnections|problems)|(?:stable|fine) (?:now|all day|since))\b",
+                       re.IGNORECASE)
+_NOT_RESOLVED = re.compile(r"\b(?:not|isn'?t|aren'?t|still)\b[^.!?]{0,20}\b(?:fixed|resolved|sorted|working|stable|fine)\b",
+                           re.IGNORECASE)
+_QUESTION = re.compile(r"\?|^\s*(?:how|what|why|when|where|which|who|can|could|do|does|is|are|will|should|would)\b",
+                       re.IGNORECASE)
+_CODE_OWNED_FACTS = ("safety_condition", "factory_reset", "reset_confirm", "customer_reports_resolved")
 _TRIED = re.compile(r"\b(already|i'?ve (?:tried|done|restarted|rebooted|moved|checked)|tried that|did that|"
                     r"(?:restarted|rebooted|reset|moved|checked|reseated|replaced)\s+(?:it|the|both|my))\b", re.IGNORECASE)
+
+
+def is_question(message: str) -> bool:
+    return bool(_QUESTION.search(message))
 
 
 @dataclass
@@ -105,7 +118,7 @@ class SessionState:
             # The customer's own sentence is replayed to the model on later turns; a message flagged as
             # an injection keeps its structured facts but not its wording.
             self.steps_tried.append(message.strip()[:200] if keep_wording else "(a step reported in a withheld message)")
-        if _RESOLVED.search(message):
+        if _RESOLVED.search(message) and not _NOT_RESOLVED.search(message):
             found["customer_reports_resolved"] = True
         self.facts.update(found)
         return found
@@ -121,7 +134,12 @@ class SessionState:
 
     def merge_model_facts(self, facts: dict, protected: dict) -> None:
         for key, value in (facts or {}).items():
-            if key in protected or not isinstance(key, str):
+            if not isinstance(key, str):
+                continue
+            # The model echoes the state summary back ("SAFETY_CONDITION_REPORTED=yes"): keys are normalised,
+            # and the flags the code owns (safety, reset gate, resolution) are never taken from the model.
+            key = re.sub(r"[^a-z0-9]+", "_", key.strip().lower()).strip("_")
+            if not key or key in protected or key.startswith(_CODE_OWNED_FACTS):
                 continue
             if isinstance(value, (str, int, float, bool)) and value not in ("", None):
                 self.facts[key] = value
