@@ -416,17 +416,19 @@
       const [s, ss] = await Promise.all([api("/api/stats"), api("/api/sessions")]);
       $("#dash-uptime").textContent = `up ${fmtAgo(s.uptime_s)}`;
       const lat = s.turn_latency;
+      const enabled = Object.values(s.connectors).filter((c) => c.enabled).length;
       const cards = [
         ["Turns", s.turns.total, Object.entries(s.turns.by_action).map(([k, v]) => `${k} ${v}`).join(" · ")],
-        ["Turn latency p50 / p95", lat.p50 == null ? "-" : `${lat.p50}s / ${lat.p95}s`, `mean ${lat.mean == null ? "-" : lat.mean.toFixed(2) + "s"}`],
+        ["Turn latency p50 / p95", lat.p50 == null ? "-" : `${lat.p50.toFixed(1)}s / ${lat.p95.toFixed(1)}s`, `mean ${lat.mean == null ? "-" : lat.mean.toFixed(2) + "s"}`],
         ["LLM cost (USD)", s.llm.cost_usd.toFixed(4), `${s.llm.prompt_tokens + s.llm.completion_tokens} tokens · ${s.llm.errors} errors`],
         ["Guardrail blocks", Object.values(s.guardrails.output).reduce((a, b) => a + b, 0) - (s.guardrails.output.ok || 0), `input flags ${Object.values(s.guardrails.input).reduce((a, b) => a + b, 0)}`],
-        ["Index", `${s.index_chunks} chunks`, `${Object.values(s.connectors).filter((c) => c.enabled).length} enabled connectors · ${s.index_current ? "current" : "needs sync"}`],
+        ["Index", `${s.index_chunks} chunk${s.index_chunks === 1 ? "" : "s"}`, `${enabled} enabled connector${enabled === 1 ? "" : "s"} · ${s.index_current ? "current" : "needs sync"}`],
         ["Retrieval", `${s.retrieval.empty} empty`, `mean ${s.retrieval.hits.mean == null ? "-" : s.retrieval.hits.mean.toFixed(1)} chunks/turn`],
-        ["Model", s.llm.model, s.embedder],
+        // "openai/gpt-4.1-mini" wraps at the card's 24px value size: the vendor moves to the subtitle.
+        ["Model", s.llm.model.split("/").pop(), `${s.llm.model.includes("/") ? s.llm.model.split("/")[0] + " via " : ""}${s.llm.provider} · ${s.embedder.split(/[:/]/).pop()}`],
         ["Errors", s.errors, "unhandled turn errors"],
       ];
-      $("#dash-cards").innerHTML = cards.map(([k, v, sub]) => `<div class="card"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join("");
+      $("#dash-cards").innerHTML = cards.map(([k, v, sub]) => `<div class="card"><div class="k">${esc(k)}</div><div class="v" title="${esc(v)}">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join("");
       const a = s.turns.by_action; bars($("#chart-actions"), Object.keys(a), Object.values(a), ["#2457c5", "#1f8a4c", "#0f8b8d", "#c0392b"]);
       const lb = lat.buckets.filter((b) => b.le < 1e300); bars($("#chart-latency"), lb.map((b) => `≤${b.le}s`), lb.map((b) => b.count), ["#7c4dff"]);
       const g = { ...Object.fromEntries(Object.entries(s.guardrails.input).map(([k, v]) => ["in:" + k, v])), ...Object.fromEntries(Object.entries(s.guardrails.output).map(([k, v]) => ["out:" + k, v])) };

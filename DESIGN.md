@@ -41,7 +41,7 @@ The `hash` embedder (unigram+bigram hashing) exists so unit tests need no downlo
 
 ## How quality was measured, and what the numbers say
 
-`eval/cases.jsonl` holds 37 scripted conversations (45 turns) across nine categories: retrieval, product-line isolation, freshness (archived vs. current), memory, ordered steps, the factory-reset gate, escalation, abstention, input guardrails, output guardrails.
+`eval/cases.jsonl` holds 38 scripted conversations (47 turns) across nine categories: retrieval, product-line isolation, freshness (archived vs. current), memory, ordered steps, the factory-reset gate, escalation, abstention, input guardrails, output guardrails.
 Every turn has deterministic expectations - allowed actions, sources that must/must not be cited or retrieved, the top-ranked source, regexes the reply must and must not match, guardrail flags that must fire.
 `eval/run_eval.py` runs them through the real pipeline, reports pass rates per category, Recall@k and MRR over the turns that declare a retrieval target, and optionally scores each reply with an LLM judge (1-5 on grounded / helpful / safe against the retrieved evidence).
 
@@ -49,15 +49,15 @@ Final run (`openai/gpt-4.1-mini`, local bge-small, `eval/RESULTS.md`):
 
 | | |
 |---|---|
-| cases / checks | **37/37**, 134/134 |
-| retrieval (23 turns) | Recall@8 = 1.00, MRR = 1.00 |
-| judge (n=45) | grounded 4.78, helpful 4.42, safe 4.98 |
+| cases / checks | **38/38**, 141/141 |
+| retrieval (25 turns) | Recall@8 = 1.00, MRR = 1.00 |
+| judge (n=47) | grounded 4.74, helpful 4.43, safe 5.00 |
 | cost | ~$0.0007 per LLM call, ~$0.05 per full eval run; $0.16 spent over the whole project including development |
 
 What the numbers say, honestly: retrieval on this corpus is effectively solved by section chunking plus hybrid ranking - the interesting misses were never "wrong document" but "right document, wrong product line" or "right document, superseded version", which is why the eval has explicit `retrieved_none` and `cite_none` checks.
-The judge's lowest axis is *helpful* (4.40), and reading the notes it is mostly "correct but could have asked the more specific question" - conversation design, not grounding.
+The judge's lowest axis is *helpful* (4.43), and reading the notes it is mostly "correct but could have asked the more specific question" - conversation design, not grounding.
 The first live run scored 31/37; the six failures are the useful part and are listed in `eval/RESULTS.md`.
-The no-credentials CI mode scores 13/13 on the model-independent subset with the real embedder.
+The no-credentials CI mode scores 14/14 on the model-independent subset with the real embedder.
 
 ## One observed failure
 

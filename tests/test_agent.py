@@ -155,3 +155,25 @@ def test_a_pro_safety_report_is_answered_from_the_policy_safety_section(scripted
     assert {"source_id": "warranty-safety-policy", "locator": "Safety"} in r.citations
     prompt = "\n".join(m["content"] for m in llm.prompts[0] if m["role"] == "user")
     assert 'source_id="warranty-safety-policy" locator="Safety"' in prompt and "product=all" in prompt
+
+
+def test_a_warranty_question_mid_conversation_is_answered_from_the_warranty_section(scripted):
+    # The retrieval query carries the session context ("N5 Pro", "rebooting"), so Pro manuals
+    # crowd the evidence; the warranty section must still be in front of the model.
+    first = {"response": "Which LED state does the N5 Pro show while it reboots?", "action": "ask", "citations": []}
+    reply = {"response": "A warranty assessment is possible, but only Support can decide coverage after checking "
+                         "proof of purchase and the unit.", "action": "escalate", "citations": [1]}
+    agent, llm = scripted([first, reply])
+    agent.handle("pro-warranty", "My N5 Pro node keeps rebooting every few minutes, LED goes white then blue")
+    r = agent.handle("pro-warranty", "I restarted it already. Will the warranty definitely cover a replacement?")
+    prompt = "\n".join(m["content"] for m in llm.prompts[1] if m["role"] == "user")
+    assert 'source_id="warranty-safety-policy" locator="Limited warranty"' in prompt
+    assert {"source_id": "warranty-safety-policy", "locator": "Limited warranty"} in r.citations
+
+
+def test_an_ordinary_turn_does_not_pin_the_warranty_section(scripted):
+    reply = {"response": "Move the N5 Pro closer to the gateway.", "action": "ask", "citations": []}
+    agent, llm = scripted([reply])
+    agent.handle("pro-no-warranty", "My N5 Pro node keeps rebooting every few minutes, LED goes white then blue")
+    prompt = "\n".join(m["content"] for m in llm.prompts[0] if m["role"] == "user")
+    assert 'locator="Limited warranty"' not in prompt

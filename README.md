@@ -135,7 +135,7 @@ src/orbitmesh/
   cli.py           `orbitmesh ingest|chat [--jsonl]|serve`
   server.py        HTTP API + web UI (Ask / Connectors / Dashboard); static/ holds the page
   observability.py JSON logging to stderr + Prometheus metrics
-eval/              cases.jsonl (37 scripted conversations) + run_eval.py (+ optional LLM judge)
+eval/              cases.jsonl (38 scripted conversations) + run_eval.py (+ optional LLM judge)
 tests/             58 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, agent, JSONL contract
 infra/terraform/   GCP: Cloud Run, Artifact Registry, Secret Manager, uptime check, alerts, dashboard
 .github/workflows/ ci.yml (ingest + retrieval + eval checks, no paid credentials), deploy.yml (WIF -> Cloud Run)

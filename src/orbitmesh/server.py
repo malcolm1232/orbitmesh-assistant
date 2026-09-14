@@ -89,12 +89,18 @@ def _histogram(samples: dict, name: str) -> dict:
     total_sum = sum(v for k, v in samples.items() if k.startswith(f"{name}_sum"))
 
     def pct(p: float) -> float | None:
+        """Linear interpolation inside the bucket that holds the target rank, as Prometheus's
+        histogram_quantile does; past the last finite bucket, that bucket's upper edge."""
         if not total:
             return None
         target = p * total
+        lower, below = 0.0, 0.0
         for le, c in buckets:
             if c >= target:
-                return None if math.isinf(le) else le
+                if math.isinf(le):
+                    return lower if lower else None
+                return round(lower + (le - lower) * (target - below) / (c - below), 2) if c > below else le
+            lower, below = le, c
         return None
 
     prev = 0.0

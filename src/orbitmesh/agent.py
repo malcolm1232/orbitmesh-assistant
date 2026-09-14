@@ -33,6 +33,7 @@ INJECTION_WITHHELD = ("[message withheld: it contained instructions aimed at the
                       "guardrail); any device details in it are already in the session state]")
 CUSTOMER_WITHHELD = ("[customer wording withheld: the model provider's content filter refused it; the facts it "
                      "carried are in the session state]")
+_WARRANTY = re.compile(r"\bwarrant(?:y|ies|ee)\b|\bcover(?:ed|age)\b|\bRMA\b|\breplacement\b", re.IGNORECASE)
 
 
 @dataclass
@@ -133,6 +134,10 @@ class Agent:
             # The confirmation turn is usually just "yes": make sure the documented reset
             # procedure is in front of the model rather than whatever "yes" retrieves.
             hits = self._pin(hits, "reset-recovery-guide", "Factory reset")
+        if _WARRANTY.search(text):
+            # Session context ("N5 Pro", "rebooting") pulls product manuals to the top of the query,
+            # which can push the warranty section out of the evidence entirely.
+            hits = self._pin(hits, "warranty-safety-policy", "Limited warranty")
         if state.safety_condition:
             # A safety report must be answered from the policy, whatever else was said.
             hits = self._pin(hits, "warranty-safety-policy", "Safety")

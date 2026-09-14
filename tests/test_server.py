@@ -94,15 +94,17 @@ def test_link_connector_with_unreachable_link_reports_the_error(client, monkeypa
 
 
 def test_stats_and_sessions(client):
+    client.post("/chat", json={"session_id": "stats-1", "message": "N1 flashing amber on wireless"})
     s = client.get("/api/stats").json()
     assert s["index_chunks"] == 66 and s["turns"]["total"] >= 1 and "orbitmesh-corpus" in s["connectors"]
     assert set(s["turns"]["by_action"]) == {"ask", "instruct", "resolved", "escalate"}
     ss = client.get("/api/sessions").json()["sessions"]
-    assert any(x["session_id"] == "web-1" for x in ss)
+    assert any(x["session_id"] == "stats-1" for x in ss)
     assert all("message" not in x for x in ss)   # no customer text on the dashboard
 
 
 def test_stats_histograms_survive_labels_and_inf(client):
+    client.post("/chat", json={"session_id": "stats-2", "message": "N1 flashing amber on wireless"})
     s = client.get("/api/stats").json()
     lat = s["turn_latency"]
     assert lat["count"] >= 1 and lat["p95"] is not None and lat["p95"] < float("inf")
@@ -120,3 +122,23 @@ def test_histogram_with_no_samples_reports_no_percentiles():
                "orbitmesh_llm_latency_seconds_sum{provider=openrouter}": 0.0}
     h = _histogram(samples, "orbitmesh_llm_latency_seconds")
     assert h["count"] == 0 and h["p50"] is None and h["p95"] is None and h["mean"] is None
+
+
+def test_histogram_percentiles_interpolate_inside_the_bucket():
+    # Every turn took between 1 s and 2 s: the bucket's upper edge ("2s / 2s") is not an estimate.
+    from orbitmesh.server import _histogram
+
+    name = "orbitmesh_turn_latency_seconds"
+    samples = {f"{name}_bucket{{le=1.0}}": 0.0, f"{name}_bucket{{le=2.0}}": 10.0, f"{name}_bucket{{le=4.0}}": 10.0,
+               f"{name}_bucket{{le=+Inf}}": 10.0, f"{name}_count": 10.0, f"{name}_sum": 15.0}
+    h = _histogram(samples, name)
+    assert h["p50"] == 1.5 and h["p95"] == 1.95
+
+
+def test_histogram_percentile_past_the_last_bucket_reports_that_bucket_edge():
+    from orbitmesh.server import _histogram
+
+    name = "orbitmesh_turn_latency_seconds"
+    samples = {f"{name}_bucket{{le=32.0}}": 9.0, f"{name}_bucket{{le=+Inf}}": 10.0, f"{name}_count": 10.0,
+               f"{name}_sum": 120.0}
+    assert _histogram(samples, name)["p95"] == 32.0
