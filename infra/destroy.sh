@@ -16,8 +16,9 @@ APPROVE=(); [ "${YES:-}" = 1 ] && APPROVE=(-auto-approve)
 
 "${TF[@]}" init -input=false
 # A service created before deletion_protection = false was in main.tf still carries the provider's
-# default (true), which makes destroy fail: switch it off first. Only touch a service that exists.
-if "${TF[@]}" state list 2>/dev/null | grep -qx 'google_cloud_run_v2_service.app'; then
+# default (true), which makes destroy fail: switch it off first - only then, since a targeted apply
+# would also roll any other drift on the service into a new revision just before deleting it.
+if "${TF[@]}" state show google_cloud_run_v2_service.app 2>/dev/null | grep -Eq '^\s*deletion_protection\s*=\s*true'; then
   "${TF[@]}" apply -input=false "${APPROVE[@]}" -target=google_cloud_run_v2_service.app
 fi
 "${TF[@]}" destroy -input=false "${APPROVE[@]}"
