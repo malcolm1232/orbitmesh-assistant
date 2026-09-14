@@ -35,7 +35,7 @@ Example:
 
 ```
 $ echo '{"session_id":"case-1","message":"My node keeps disconnecting"}' | ./scripts/chat.sh --jsonl 2>/dev/null
-{"response": "Which OrbitMesh system do you have: the home R1 router with N1 nodes, or the Pro Series R5 Pro / N5 Pro ...", "citations": [], "action": "ask", "session_id": "case-1", "turn": 1, "guardrails": {"input": {}, "output": []}}
+{"response": "Is your node connected to the router by Ethernet cable or wirelessly? Also, please describe the LED color and pattern on the node when it disconnects.", "citations": [{"source_id": "troubleshooting-guide", "locator": "N1 node disconnects intermittently"}], "action": "ask", "session_id": "case-1", "turn": 1, "guardrails": {"input": {}, "output": []}}
 ```
 
 `action` is one of `ask`, `instruct`, `resolved`, `escalate`; `citations` is a list of `{source_id, locator}` where `source_id` is the manifest id and `locator` the document section.
@@ -93,11 +93,13 @@ All settings are environment variables (see [`.env.example`](.env.example)); the
 ### No-credentials mode (used by CI)
 
 ```bash
-LLM_PROVIDER=mock EMBEDDING_PROVIDER=hash make ingest test eval
+LLM_PROVIDER=mock make ingest test eval
 ```
 
 `mock` is not a stub returning a constant: it reads the retrieved evidence and the session state and applies the same rules (ask which product when the evidence spans both lines, escalate on a safety report, give the reset step only after confirmation, ...), so retrieval, guardrails, memory and the transport are exercised without a paid call.
 In mock mode the eval runner scores only the model-independent expectations (actions, retrieval isolation and ranking, guardrail flags).
+Embeddings stay the real local model (a one-time free download, no key); this is exactly what the `retrieval-eval` CI job runs.
+`make test` goes one step further with `EMBEDDING_PROVIDER=hash` (no download at all), but a bag-of-hashed-words ranking misses two of the eval's top-rank checks, so do not use it for `make eval`.
 
 ## How it works
 
@@ -130,13 +132,13 @@ src/orbitmesh/
   llm.py           OpenRouter client (JSON mode, disk cache) and the mock
   agent.py         the turn pipeline
   connectors.py    connector store: corpus (read-only) + upload + gdrive + sharepoint, one shared index
-  fetchers.py      public-link fetchers (Drive file/doc/folder, SharePoint file) - no OAuth
+  fetchers.py      public-link fetchers (Drive file/doc/folder, SharePoint file/folder) - no OAuth
   sync.py          sync_all(): enabled connectors -> chunks -> idempotent vector-store reconcile
   cli.py           `orbitmesh ingest|chat [--jsonl]|serve`
   server.py        HTTP API + web UI (Ask / Connectors / Dashboard); static/ holds the page
   observability.py JSON logging to stderr + Prometheus metrics
 eval/              cases.jsonl (38 scripted conversations) + run_eval.py (+ optional LLM judge)
-tests/             58 tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, agent, JSONL contract
+tests/             unit and integration tests: chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, agent, HTTP API, JSONL contract
 infra/terraform/   GCP: Cloud Run, Artifact Registry, Secret Manager, uptime check, alerts, dashboard
 .github/workflows/ ci.yml (ingest + retrieval + eval checks, no paid credentials), deploy.yml (WIF -> Cloud Run)
 ```

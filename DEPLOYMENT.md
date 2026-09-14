@@ -1,7 +1,7 @@
 # Cloud deployment (GCP)
 
 This document is the deployment write-up requested with the assignment.
-Everything under **Implemented** exists in `infra/terraform/`, `cloudbuild.yaml` and `.github/workflows/deploy.yml` and has been applied once to a real project; everything under **Described only** is design.
+Everything under **Implemented** exists in the repository; what has actually run against a real project is said explicitly, and everything under **Described only** is design.
 
 ## Compute: Cloud Run, and why
 
@@ -39,11 +39,14 @@ Implemented (GitHub Actions + Cloud Build; see the two workflow files and `cloud
 | **test** | `make test` (chunking, idempotent re-ingest, retrieval isolation, guardrails, memory, JSONL contract) with the hashing embedder and mock LLM - no credentials, no network | `ci.yml` job `tests`, also the first Cloud Build step |
 | **ingest + retrieval eval** | ingest into an ephemeral Qdrant service container twice (second run must report `stale deleted=0`), then `make eval` with the real local embedding model and the mock LLM; results uploaded as an artifact | `ci.yml` job `retrieval-eval`, triggered by changes to `corpus/**` or the ingestion/retrieval modules |
 | **build** | `docker build` of the single image; the corpus is ingested during the build so a broken corpus fails the build, not the deploy | `deploy.yml` / `cloudbuild.yaml` |
-| **push** | Artifact Registry `asia-southeast1-docker.pkg.dev/<project>/orbitmesh/assistant:<git sha>` | same |
+| **push** | Artifact Registry `asia-southeast1-docker.pkg.dev/<project>/orbitmesh/assistant:<tag>` (git sha; `infra/deploy.sh` outside a git checkout uses a UTC timestamp) | same |
 | **deploy** | `gcloud run deploy` of the new tag; Cloud Run does a rolling revision switch with the startup probe gating traffic | same |
 | **smoke** | `GET /health` must return 200 and `POST /chat` must return a valid action | `deploy.yml` last step |
 
-GitHub authenticates to GCP with **Workload Identity Federation** (OIDC), so no service-account key is stored in GitHub.
+What has run: `ci.yml` runs on every matching push and is green.
+`deploy.yml` and `cloudbuild.yaml` are written but have not deployed anything: `deploy.yml` only runs once the repository variables `GCP_PROJECT_ID`, `GCP_WIF_PROVIDER` and `GCP_DEPLOY_SA` exist, and this repository does not set them, so every run is skipped.
+The live demo was built and deployed with `infra/deploy.sh` (see "What was actually deployed").
+`deploy.yml` authenticates to GCP with **Workload Identity Federation** (OIDC), so no service-account key would be stored in GitHub.
 Infrastructure changes go through `terraform plan` in a PR and `terraform apply` on merge (described; the apply in this submission was run from a workstation).
 
 Described only: a `staging` Cloud Run service receiving every `main` build with a canary of the private eval suite run against it, and promotion to `prod` by tagging, with Cloud Run traffic splitting (e.g. 10% for 15 minutes with the alert policies below as the automatic rollback trigger).
@@ -68,7 +71,7 @@ Described only: a `staging` Cloud Run service receiving every `main` build with 
 `infra/deploy.sh <project> [region]` creates the deployment on an empty project in the only order that works:
 
 1. `terraform apply -target` for the APIs, the Artifact Registry repo and the secret with its key version (from `OPENROUTER_API_KEY`) - the service cannot start without either an image or a key;
-2. `gcloud builds submit --tag <region>-docker.pkg.dev/<project>/orbitmesh/assistant:<sha>` from the repository root (`.gcloudignore` keeps `.env`, the virtualenv, local indexes and Terraform state out of the upload);
+2. `gcloud builds submit --tag <region>-docker.pkg.dev/<project>/orbitmesh/assistant:<tag>` from the repository root (`.gcloudignore` keeps `.env`, the virtualenv, local indexes and Terraform state out of the upload);
 3. a full `terraform apply`: state bucket, runtime service account and IAM bindings, the Cloud Run service, the uptime check, four alert policies, four log-based metrics and the dashboard;
 4. a smoke test of `/health` and `POST /chat` on `terraform output service_url`.
 
