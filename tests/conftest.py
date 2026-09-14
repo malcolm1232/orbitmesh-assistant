@@ -57,14 +57,17 @@ class ScriptedLLM:
     def __init__(self, drafts):
         from orbitmesh.llm import Draft
 
-        self._drafts = [d if not isinstance(d, dict) else Draft(**d) for d in drafts]
+        self._drafts = [Draft(**d) if isinstance(d, dict) else d for d in drafts]
         self.prompts: list[list[dict]] = []
 
     def complete(self, messages, **_):
         self.prompts.append(messages)
         if not self._drafts:
             raise AssertionError("ScriptedLLM ran out of drafts")
-        return self._drafts.pop(0)
+        item = self._drafts.pop(0)
+        if isinstance(item, BaseException):       # script a provider failure for this call
+            raise item
+        return item
 
 
 @pytest.fixture

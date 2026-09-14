@@ -69,7 +69,7 @@ class SessionState:
     flags: dict = field(default_factory=dict)          # last-turn guardrail notes
 
     # --- extraction -------------------------------------------------------------------
-    def observe_customer(self, message: str) -> dict:
+    def observe_customer(self, message: str, *, keep_wording: bool = True) -> dict:
         """Update facts from a customer message. Returns the facts set this turn."""
         found: dict = {}
         if _PRO.search(message):
@@ -102,7 +102,9 @@ class SessionState:
             self.safety_condition = True
             found["safety_condition"] = True
         if _TRIED.search(message):
-            self.steps_tried.append(message.strip()[:200])
+            # The customer's own sentence is replayed to the model on later turns; a message flagged as
+            # an injection keeps its structured facts but not its wording.
+            self.steps_tried.append(message.strip()[:200] if keep_wording else "(a step reported in a withheld message)")
         if _RESOLVED.search(message):
             found["customer_reports_resolved"] = True
         self.facts.update(found)

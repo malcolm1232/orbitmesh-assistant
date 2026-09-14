@@ -115,3 +115,25 @@ def test_metadata_change_without_text_change_still_reaches_the_index(tmp_path):
     stored = [c for c in vs.all_chunks() if c.source_id == "firmware-release-notes"]
     assert stored and all(c.version == "9.9" and c.effective_date == "2030-01-01" for c in stored)
     assert report.deleted == 0 and vs.count() == len(load_corpus(corpus))
+
+
+def test_process_exit_is_quiet_after_using_the_embedded_store(tmp_path):
+    """The embedded client's __del__ ran during interpreter teardown and printed 'Exception ignored ...
+    ImportError: sys.meta_path is None' on every exit - after pytest's summary, after every CLI ingest,
+    and in the Cloud Run logs on each shutdown."""
+    import subprocess
+    import sys
+
+    code = (
+        "from pathlib import Path\n"
+        "from orbitmesh.embeddings import HashingEmbedder\n"
+        "from orbitmesh.vectorstore import VectorStore\n"
+        "from orbitmesh.corpus import load_corpus\n"
+        f"vs = VectorStore(path=Path({str(tmp_path / 'q')!r}), embedder=HashingEmbedder())\n"
+        f"vs.sync(load_corpus(Path({str(CORPUS)!r}))[:5])\n"
+        "import orbitmesh.corpus as held\n"
+        "held._store_kept_alive_by_a_module = vs\n"   # like the server app holding the store until teardown
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, proc.stderr
+    assert "Exception ignored" not in proc.stderr and "Traceback" not in proc.stderr, proc.stderr

@@ -43,6 +43,12 @@ class LLMError(RuntimeError):
     pass
 
 
+class ContentFiltered(LLMError):
+    """The upstream provider's safety filter refused the prompt (finish_reason=content_filter).
+    OpenRouter serves one model id from several upstreams; Azure's prompt shield answers this way
+    with a canned refusal and no JSON, so it must not be mistaken for a malformed draft."""
+
+
 def _parse_draft(raw: str) -> Draft:
     text = raw.strip()
     if text.startswith("```"):
@@ -125,6 +131,9 @@ class OpenRouterLLM:
             raise LLMError(f"LLM call failed: {type(exc).__name__}: {exc}") from exc
         finally:
             LLM_LATENCY.labels(provider=self.provider).observe(time.perf_counter() - t0)
+        if resp.choices and resp.choices[0].finish_reason == "content_filter":
+            LLM_ERRORS.labels(reason="content_filter").inc()
+            raise ContentFiltered("the provider's content filter refused the prompt")
         content = (resp.choices[0].message.content or "") if resp.choices else ""
         usage = {}
         if resp.usage is not None:

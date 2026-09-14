@@ -107,4 +107,16 @@ def test_stats_histograms_survive_labels_and_inf(client):
     lat = s["turn_latency"]
     assert lat["count"] >= 1 and lat["p95"] is not None and lat["p95"] < float("inf")
     assert all(b["le"] < float("inf") for b in lat["buckets"]) and sum(b["count"] for b in lat["buckets"]) <= lat["count"]
-    assert s["llm_latency"]["count"] == 0 and s["llm_latency"]["p50"] is None   # mock LLM: labelled histogram, no samples
+    llm_lat = s["llm_latency"]                      # process-wide registry: other test modules may have observed it
+    assert (llm_lat["count"] == 0 and llm_lat["p50"] is None) or (llm_lat["count"] > 0 and llm_lat["p95"] is not None)
+
+
+def test_histogram_with_no_samples_reports_no_percentiles():
+    from orbitmesh.server import _histogram
+
+    samples = {"orbitmesh_llm_latency_seconds_bucket{le=0.5,provider=openrouter}": 0.0,
+               "orbitmesh_llm_latency_seconds_bucket{le=+Inf,provider=openrouter}": 0.0,
+               "orbitmesh_llm_latency_seconds_count{provider=openrouter}": 0.0,
+               "orbitmesh_llm_latency_seconds_sum{provider=openrouter}": 0.0}
+    h = _histogram(samples, "orbitmesh_llm_latency_seconds")
+    assert h["count"] == 0 and h["p50"] is None and h["p95"] is None and h["mean"] is None

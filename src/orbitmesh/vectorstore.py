@@ -15,8 +15,10 @@ produces, so it is exact regardless of how many times ingest runs.
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import uuid
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,6 +48,12 @@ class SyncReport:
         return {"written": self.written, "deleted": self.deleted, "total": self.total, "recreated": self.recreated}
 
 
+def _close_at_exit(ref: "weakref.ref[VectorStore]") -> None:
+    store = ref()
+    if store is not None:
+        store.close()
+
+
 class VectorStore:
     def __init__(self, *, url: str = "", api_key: str = "", path: Path | None = None,
                  collection: str = "orbitmesh_chunks", embedder: Embedder) -> None:
@@ -60,6 +68,15 @@ class VectorStore:
             self.location = f"embedded:{path}"
         self.collection = collection
         self.embedder = embedder
+        # Close before interpreter teardown. Left to QdrantClient.__del__, a store that lives as long as
+        # the process (the HTTP app, a module fixture) is closed after modules are cleared, and the
+        # embedded client's lazy `import portalocker` prints an ignored-exception traceback on every exit.
+        atexit.register(_close_at_exit, weakref.ref(self))
+
+    def close(self) -> None:
+        client = getattr(self, "client", None)
+        if client is not None:
+            client.close()
 
     # --- schema -----------------------------------------------------------------------
     def _ensure_collection(self) -> bool:
