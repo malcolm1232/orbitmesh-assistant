@@ -65,9 +65,15 @@ Described only: a `staging` Cloud Run service receiving every `main` build with 
 
 ## What was actually deployed
 
-- `terraform apply` in `infra/terraform/` against a real project created the Artifact Registry repo, the secret, the runtime service account and its IAM binding, the Cloud Run service, the uptime check, four alert policies, four log-based metrics and the dashboard.
-- The image was built and pushed with Cloud Build (`gcloud builds submit --tag …`).
-- The live URL is printed by `terraform output service_url`; the web UI (Ask, Connectors with an upload connector created and a revised document indexed, Dashboard), `/health`, `/chat`, `/api/*` and `/metrics` were verified in a browser and with `curl` (see the README for the exact commands).
+`infra/deploy.sh <project> [region]` creates the deployment on an empty project in the only order that works:
+
+1. `terraform apply -target` for the APIs, the Artifact Registry repo and the secret with its key version (from `OPENROUTER_API_KEY`) - the service cannot start without either an image or a key;
+2. `gcloud builds submit --tag <region>-docker.pkg.dev/<project>/orbitmesh/assistant:<sha>` from the repository root (`.gcloudignore` keeps `.env`, the virtualenv, local indexes and Terraform state out of the upload);
+3. a full `terraform apply`: state bucket, runtime service account and IAM bindings, the Cloud Run service, the uptime check, four alert policies, four log-based metrics and the dashboard;
+4. a smoke test of `/health` and `POST /chat` on `terraform output service_url`.
+
+`infra/destroy.sh <project> [region]` removes all of it (the service sets `deletion_protection = false`; the provider's default would make destroy fail).
+The live demo was torn down and recreated this way from an unzipped copy of the submission, then the web UI (Ask, Connectors, Dashboard), `/health`, `/chat`, `/api/*` and `/metrics` were verified in a browser and with `curl`.
 
 ## Cost
 

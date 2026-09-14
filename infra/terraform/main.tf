@@ -32,8 +32,9 @@ resource "google_artifact_registry_repository" "repo" {
 }
 
 # --- secrets -------------------------------------------------------------------------
-# The key VALUE is never in Terraform state or git: add a version out-of-band
-#   printf '%s' "$OPENROUTER_API_KEY" | gcloud secrets versions add openrouter-api-key --data-file=-
+# The key VALUE is never in git. Either Terraform adds the version from TF_VAR_openrouter_api_key
+# (infra/deploy.sh does; the value is then in the local, gitignored state), or leave the variable empty
+# and add it out-of-band:  printf '%s' "$OPENROUTER_API_KEY" | gcloud secrets versions add openrouter-api-key --data-file=-
 resource "google_secret_manager_secret" "openrouter" {
   secret_id = "openrouter-api-key"
   replication {
@@ -79,6 +80,9 @@ resource "google_cloud_run_v2_service" "app" {
   name     = var.service_name
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
+  # The provider defaults this to true, which makes `terraform destroy` fail on the service. A demo must be
+  # removable; for production, set it true and remove the service deliberately.
+  deletion_protection = false
 
   template {
     service_account       = google_service_account.runtime.email

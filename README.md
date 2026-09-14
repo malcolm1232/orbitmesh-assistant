@@ -150,11 +150,10 @@ The CI workflow runs the same check on every corpus change: it ingests twice int
 ## Cloud deployment
 
 See [`DEPLOYMENT.md`](DEPLOYMENT.md).
-The service in this submission was deployed to Cloud Run with `terraform apply` and verified in a browser:
+The live demo was created from an empty deployment with the script below, run from an unzipped copy of this submission, and then verified in a browser.
+It needs `gcloud` (authenticated), Terraform >= 1.6 and `OPENROUTER_API_KEY` in the environment or `.env`.
 
 ```bash
-cd infra/terraform && cp terraform.tfvars.example terraform.tfvars   # edit project/region/image
-terraform init && terraform apply
-gcloud builds submit --tag "$(terraform output -raw image 2>/dev/null || echo <image>)"   # or cloudbuild.yaml
-terraform output service_url
+infra/deploy.sh <gcp-project-id> [region]     # APIs + registry + secret -> Cloud Build image -> Cloud Run + monitoring -> smoke test
+infra/destroy.sh <gcp-project-id> [region]    # removes all of it again
 ```

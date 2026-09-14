@@ -1,0 +1,21 @@
+# Source uploaded by `gcloud builds submit` (infra/deploy.sh). Same rules as .dockerignore: secrets,
+# virtualenv, local indexes, caches and Terraform state never leave the machine.
+.git
+.gcloudignore
+.env
+.env.*
+!.env.example
+.venv
+venv
+data
+qdrant_storage
+eval_results
+private_evals
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.pytest_cache
+.DS_Store
+infra/terraform/.terraform
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars
