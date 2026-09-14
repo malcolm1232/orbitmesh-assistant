@@ -5,7 +5,8 @@ Described only: the tracing and the eval-in-production loop at the end.
 
 ## What is logged
 
-Every turn emits one JSON object to **stderr** (stdout is reserved for the JSONL protocol; on Cloud Run stderr becomes a `jsonPayload` in Cloud Logging):
+Every turn emits one JSON object to **stderr** (stdout is reserved for the JSONL protocol; on Cloud Run stderr becomes a `jsonPayload` in Cloud Logging).
+The interactive `make chat` writes the same records to `data/logs/chat.log` instead and shows only warnings on the terminal, so a person reads the conversation rather than the telemetry:
 
 ```json
 {"ts":"2026-09-13T15:20:43.240Z","level":"INFO","logger":"orbitmesh.agent","event":"turn",

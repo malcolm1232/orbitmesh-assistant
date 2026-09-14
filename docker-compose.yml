@@ -1,7 +1,7 @@
 # Local stack: Qdrant + the assistant.
 #
-#   docker compose up -d --build --wait          # qdrant + HTTP wrapper on :8080
-#   docker compose run --rm ingest               # (re)index the corpus into Qdrant
+#   docker compose up -d --build --wait          # qdrant + HTTP wrapper on :8080 (indexes on start-up)
+#   docker compose run --rm ingest               # re-index after editing corpus/ (then restart app)
 #   docker compose run --rm chat                 # interactive CLI in the terminal
 #   echo '{"session_id":"a","message":"hi"}' | docker compose run --rm -T chat chat --jsonl
 #
@@ -35,11 +35,12 @@ services:
       - app_data:/data
     ports:
       - "${APP_PORT:-8080}:8080"
+    # No dependency on the one-shot `ingest` service: the app syncs the index on start-up whenever it
+    # does not match the connectors (a fresh Qdrant volume included), and its healthcheck only passes
+    # after that. A completed one-shot service in the default set makes `up --wait` hang or fail.
     depends_on:
       qdrant:
         condition: service_healthy
-      ingest:
-        condition: service_completed_successfully
 
   ingest:
     <<: *app
@@ -49,6 +50,7 @@ services:
       qdrant:
         condition: service_healthy
     command: ["ingest"]
+    profiles: ["tools"]        # `docker compose run --rm ingest` - not part of `up`
 
   chat:
     <<: *app

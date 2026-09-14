@@ -14,6 +14,7 @@ import json
 import logging
 import sys
 import uuid
+from pathlib import Path
 
 from .config import load_settings
 from .observability import configure_logging, log_event
@@ -84,11 +85,17 @@ def _jsonl_loop(agent) -> int:
     return 0
 
 
+QUIT_WORDS = {"/quit", "/exit", "quit", "exit"}
+
+
 def _repl(agent, settings, *, session_id: str) -> int:
     err = sys.stderr
+    log_file = Path(settings.session_dir).parent / "logs" / "chat.log"
+    configure_logging(settings.log_level, file=log_file)
     print(f"OrbitMesh Support Assistant  (model={settings.llm_provider}:{settings.llm_model}, session={session_id})",
           file=err)
-    print("Describe the problem. Type /reset to start over, /state to see what I remember, /quit to exit.", file=err)
+    print("Describe the problem. Type /reset to start over, /state to see what I remember, quit to exit.", file=err)
+    print(f"(diagnostic logs: {log_file})", file=err)
     while True:
         try:
             message = input("you> ").strip()
@@ -97,7 +104,7 @@ def _repl(agent, settings, *, session_id: str) -> int:
             return 0
         if not message:
             continue
-        if message in ("/quit", "/exit"):
+        if message.lower() in QUIT_WORDS:
             return 0
         if message == "/reset":
             agent.sessions.reset(session_id)

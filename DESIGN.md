@@ -11,7 +11,7 @@ message -> input guardrails -> memory extraction -> reset gate -> hybrid retriev
 
 The trade-off that shaped everything: **the model proposes, deterministic code disposes.**
 The LLM writes the prose and picks an action, but it does not get to decide whether a factory reset was confirmed, whether a citation points at evidence it was actually shown, whether a safety report escalates, or whether a password is worth asking for.
-Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline). 81 tests in total.
+Those are regexes and state machines in `guardrails.py` and `conversation.py`, and they are unit-tested against the model's worst drafts (`tests/test_agent.py` feeds scripted bad drafts through the pipeline).
 The cost is some rigidity - a rule can block a compliant draft, which happened during development (see "Observed failure") - and the mitigation is a regeneration step that tells the model exactly which rule it broke before falling back to a canned reply that itself cites the corpus.
 
 Other decisions:
@@ -72,7 +72,7 @@ The general lesson applied elsewhere: every guardrail got an *allow* pattern for
 ## At ~100x corpus size and real customer load
 
 - **Retrieval.** 6,600 chunks still fit one Qdrant node, but the in-process BM25 (built from a full scroll at start-up) does not: move the lexical side into Qdrant's sparse vectors and use its native hybrid query, add payload indexes on `product_line`/`archived`, and pre-filter by product line server-side. Add a cross-encoder reranker over the top 30 - cheap at this scale and the biggest quality lever once the corpus has near-duplicate sections across product generations.
-- **Ingestion.** Content-hash ids already make re-ingest idempotent; at 100x it becomes an async job (queue + workers) that re-embeds only changed sections, with the manifest's versions driving "supersedes" relationships explicitly instead of the archived-banner heuristic.
+- **Ingestion.** Content-hash ids already make re-ingest idempotent and a re-sync embeds only chunks the index has not seen (unchanged chunks only get their metadata refreshed); at 100x it becomes an async job (queue + workers) fed by change events instead of a full manifest scan, with the manifest's versions driving "supersedes" relationships explicitly instead of the archived-banner heuristic.
 - **Serving.** Cloud Run scales horizontally, but session state has to leave the instance disk: Redis/Firestore keyed by `session_id` with a TTL. The LLM call dominates latency (p50 ~2 s, p95 ~5 s) and cost (~$0.0007/turn). Levers in order: prompt caching of the system prompt, a smaller model for the *ask* turns with escalation to the larger one only when an *instruct* needs drafting, and semantic caching of the (state, question) -> reply pairs for the long tail of identical first messages.
 - **Evaluation and safety.** The private-suite style regression run moves into CI against a staging deployment; guardrail hit rates and the escalate/resolve mix become alerts (see `OBSERVABILITY.md`).
 - **Cost at load.** 100k turns/day is ~$70/day of model, ~$5/day of Cloud Run; the embedding model stays local and free.

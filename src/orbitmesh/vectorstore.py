@@ -118,16 +118,26 @@ class VectorStore:
         recreated = self._ensure_collection()
         before = set() if recreated else self.existing_ids()
         wanted = {point_id(c.chunk_id): c for c in chunks}
-        to_write = [c for pid, c in wanted.items()]  # overwrite everything: cheap, and exact
+        # A chunk id hashes the embedded text, so a point that already exists has the right vector:
+        # only unseen chunks are embedded. Its payload may still be stale (manifest version, date,
+        # product line and archived flag are not part of the id), so kept points get their payload
+        # overwritten - one batched call, no embedding. Exact, and a re-sync costs ~nothing.
+        to_embed = [c for pid, c in wanted.items() if pid not in before]
+        kept = [(pid, c) for pid, c in wanted.items() if pid in before]
         written = 0
-        for i in range(0, len(to_write), batch_size):
-            batch = to_write[i:i + batch_size]
+        for i in range(0, len(to_embed), batch_size):
+            batch = to_embed[i:i + batch_size]
             vectors = self.embedder.embed([c.text for c in batch])
             self.client.upsert(self.collection, points=[
                 qm.PointStruct(id=point_id(c.chunk_id), vector=v, payload=c.payload())
                 for c, v in zip(batch, vectors)
             ])
             written += len(batch)
+        for i in range(0, len(kept), 256):
+            self.client.batch_update_points(self.collection, update_operations=[
+                qm.OverwritePayloadOperation(overwrite_payload=qm.SetPayload(payload=c.payload(), points=[pid]))
+                for pid, c in kept[i:i + 256]
+            ])
         stale = sorted(before - set(wanted))
         if stale:
             self.client.delete(self.collection, points_selector=qm.PointIdsList(points=stale))

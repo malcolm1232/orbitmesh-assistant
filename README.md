@@ -19,7 +19,7 @@ cp .env.example .env            # put OPENROUTER_API_KEY=sk-or-... in .env
 make setup                      # venv + dependencies
 make ingest                     # index corpus/ (embedded Qdrant under data/qdrant, ~5 s)
 make chat                       # interactive conversation
-make test                       # 81 automated tests, no network, no key
+make test                       # automated tests, no network, no key
 make eval                       # evaluation suite + summary (uses the LLM; ~$0.05 per run)
 ```
 
@@ -41,14 +41,16 @@ $ echo '{"session_id":"case-1","message":"My node keeps disconnecting"}' | ./scr
 `action` is one of `ask`, `instruct`, `resolved`, `escalate`; `citations` is a list of `{source_id, locator}` where `source_id` is the manifest id and `locator` the document section.
 Reusing a `session_id` continues that conversation (also across process restarts - sessions are persisted under `data/sessions/`).
 Diagnostics are JSON lines on **stderr**; stdout carries only the protocol.
+In the interactive `make chat` the same diagnostics go to `data/logs/chat.log`, and typing `quit` (or `/quit`) ends the session.
 
 ## Run with Docker Compose
 
-The compose file starts Qdrant and the assistant (ingesting on start-up), and exposes the HTTP wrapper and web UI on `:8080`.
+The compose file starts Qdrant and the assistant, and exposes the HTTP wrapper and web UI on `:8080`.
+The assistant indexes the corpus into Qdrant on start-up, and `--wait` returns once it is healthy.
 
 ```bash
 cp .env.example .env                       # add OPENROUTER_API_KEY (or set LLM_PROVIDER=mock)
-docker compose up -d --build --wait        # qdrant + ingest + app
+docker compose up -d --build --wait        # qdrant + app (indexes on start-up)
 open http://localhost:8080                 # web UI: Ask / Connectors / Dashboard
 curl -s localhost:8080/health
 curl -s -X POST localhost:8080/chat -H 'content-type: application/json' \
@@ -56,7 +58,7 @@ curl -s -X POST localhost:8080/chat -H 'content-type: application/json' \
 
 docker compose run --rm chat               # interactive CLI inside the container
 echo '{"session_id":"a","message":"R1 shows E31"}' | docker compose run --rm -T --no-deps chat chat --jsonl
-docker compose run --rm ingest             # re-index after editing corpus/
+docker compose run --rm ingest             # re-index after editing corpus/ (the app also re-syncs on restart)
 docker compose down -v                     # stop and delete the index volume
 ```
 

@@ -70,3 +70,48 @@ def test_changing_the_embedder_recreates_the_collection(tmp_path):
 
 def test_point_ids_are_stable():
     assert point_id("abc") == point_id("abc") != point_id("abd")
+
+
+class _CountingEmbedder(HashingEmbedder):
+    def __init__(self):
+        super().__init__()
+        self.embedded = 0
+
+    def embed(self, texts):
+        self.embedded += len(texts)
+        return super().embed(texts)
+
+
+def test_a_resync_embeds_only_new_chunks(tmp_path):
+    """Every UI action (toggle, upload, re-fetch) and every container start runs a full sync. Re-embedding
+    unchanged chunks made adding a 45 KB Drive folder take ~40 s on Cloud Run and grows with the index."""
+    corpus = _copy_corpus(tmp_path)
+    emb = _CountingEmbedder()
+    vs = VectorStore(path=tmp_path / "q", embedder=emb)
+    chunks = load_corpus(corpus)
+    assert vs.sync(chunks).written == len(chunks) and emb.embedded == len(chunks)
+
+    emb.embedded = 0
+    again = vs.sync(chunks)
+    assert again.written == 0 and emb.embedded == 0 and again.deleted == 0 and vs.count() == len(chunks)
+
+    guide = corpus / "troubleshooting-guide.md"
+    guide.write_text(guide.read_text().replace("Wait two minutes.", "Wait five minutes."))
+    report = vs.sync(load_corpus(corpus))
+    assert report.written == 1 and emb.embedded == 1 and report.deleted == 1
+
+
+def test_metadata_change_without_text_change_still_reaches_the_index(tmp_path):
+    """Chunk ids hash the text, not the manifest fields, so skipping the embed must not skip the payload:
+    a manifest version/date bump (what freshness ranking reads) has to reach the index on the next sync."""
+    corpus = _copy_corpus(tmp_path)
+    vs = VectorStore(path=tmp_path / "q", embedder=HashingEmbedder())
+    vs.sync(load_corpus(corpus))
+    manifest = json.loads((corpus / "manifest.json").read_text())
+    target = next(d for d in manifest["documents"] if d["id"] == "firmware-release-notes")
+    target["version"], target["effective_date"] = "9.9", "2030-01-01"
+    (corpus / "manifest.json").write_text(json.dumps(manifest))
+    report = vs.sync(load_corpus(corpus))
+    stored = [c for c in vs.all_chunks() if c.source_id == "firmware-release-notes"]
+    assert stored and all(c.version == "9.9" and c.effective_date == "2030-01-01" for c in stored)
+    assert report.deleted == 0 and vs.count() == len(load_corpus(corpus))

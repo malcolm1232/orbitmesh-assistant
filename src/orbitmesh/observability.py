@@ -15,6 +15,7 @@ import json
 import logging
 import sys
 import time
+from pathlib import Path
 
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -51,14 +52,24 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False, default=str)
 
 
-def configure_logging(level: str = "INFO") -> None:
+def configure_logging(level: str = "INFO", *, file: "Path | None" = None) -> None:
+    """JSON lines on stderr. With `file`, records at `level` go to that file instead and only
+    warnings reach stderr - the interactive CLI uses this so a person at the terminal reads the
+    conversation, not the telemetry, while the telemetry is still kept."""
     root = logging.getLogger()
     root.handlers.clear()
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(JsonFormatter())
-    root.addHandler(handler)
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(JsonFormatter())
+    root.addHandler(stderr_handler)
+    if file is not None:
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(file, encoding="utf-8")
+        file_handler.setFormatter(JsonFormatter())
+        root.addHandler(file_handler)
+        stderr_handler.setLevel(logging.WARNING)
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
-    for noisy in ("httpx", "httpcore", "openai", "urllib3", "fastembed", "huggingface_hub", "qdrant_client"):
+    for noisy in ("httpx", "httpx2", "httpcore", "httpcore2", "openai", "urllib3", "fastembed", "huggingface_hub",
+                  "qdrant_client"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
